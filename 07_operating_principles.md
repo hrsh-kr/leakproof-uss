@@ -21,7 +21,7 @@ These are our own paraphrases of well-known ideas from Steve Jobs, Paul Graham, 
 | 3 | **The 60-second test.** A stranger must be able to explain the idea back in one sentence after one minute. We measure it. | Voice prompt "explain it back"; scored with a 3-point rubric |
 | 4 | **Talk to people, do not only survey them.** Ten live sessions beat a hundred form clicks for finding what is wrong. | Plan: 5 watched sessions before Oct 4; interviews |
 | 5 | **Ask about what people did, not what they would do.** "Tell me about the last time you handled a paper" beats "would you like this?" | Interview guides |
-| 6 | **Make feedback nearly free.** One tap per scene, short typed answers, a booked chat for people who prefer to talk, no sign-in, no long form. | Floating "Say what you think", voice note, 3-tap form |
+| 6 | **Make feedback nearly free.** One tap per scene, short typed answers, a booked chat for people who prefer to talk, no account or password, no long form. | Floating "Say what you think", voice note, 3-tap form |
 | 7 | **Give something back immediately.** Every interaction returns a result the person can see. | Each scene responds instantly; respondents are offered the findings |
 | 8 | **Write like you talk.** Short sentences, plain words, no buzzwords. | All page copy and reports |
 | 9 | **Count the reps.** Track conversations, responses and sessions daily. | Scorecard in section 5 |
@@ -50,7 +50,7 @@ Value rises with **dream outcome** and **likelihood of success**, and falls with
 | Dream outcome | They help stop exam leaks and see what changed because of them |
 | Likelihood | The page works in front of them; they see their effect |
 | Time delay | They see a result in seconds; feedback takes 30 seconds |
-| Effort | Short typed answers; no account; works on a phone; contextual (the form already knows which scene) |
+| Effort | Short typed answers; no account (just an email); works on a phone; contextual (the form already knows which scene) |
 
 **B. The pitch to an exam authority (for the poster)**
 
@@ -83,7 +83,7 @@ One metric above all: **can a stranger explain it back correctly after one minut
 | --- | --- |
 | Thiel says start small; our scope has five exam profiles | The engine stays general (course needs breadth). The story, poster and demo anchor on one exam type. **Proposal: anchor on NEET-style single-shift paper exams.** Confirm. |
 | Jobs says say no; the brief wants the whole pipeline | The tool shows the whole pipeline. The demo page shows four scenes and hides detail. |
-| Graham says do things that do not scale; the course wants numbers | Do both: ten live sessions for insight, an anonymous form for counts. |
+| Graham says do things that do not scale; the course wants numbers | Do both: ten live sessions for insight, a short form for counts (one-tap comments stay anonymous). |
 | Hormozi says lower the effort; the course wants consent and rigour | Consent is one short line on the first screen. Every question can be skipped except the few we need. |
 | Speed versus testing | Tests are not optional. The page keeps its logic tests; the UI is checked in a browser each change. |
 
@@ -98,4 +98,4 @@ One metric above all: **can a stranger explain it back correctly after one minut
 
 ## 8. Privacy of feedback (course requirement)
 
-Collect only what we need. No name or email unless the person chooses to give one for credit or a chat; those are stored apart from answers. Public results hide groups under 5. Delete raw data after the final report. (Voice dictation was tried and switched off; see decision D17.)
+Collect only what we need. The 12-minute review asks for an email so we can tie each review to a person (credit, swaps, follow-ups; see D18). Name, email and contact details are stored apart from answers and never appear in reports or public results. One-tap comments stay anonymous. Public results hide groups under 5. Delete raw data after the final report. (Voice dictation was tried and switched off; see decision D17.)

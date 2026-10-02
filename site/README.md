@@ -14,20 +14,21 @@ Old URLs (`/how`, `/try`, `/prototypes`, `/research`, `/requirements`, `/deliver
     src/docs/        snapshot of project docs the Requirements tab renders (refreshed on build)
     api/             Vercel functions: submit, stats, export (+ _lib)
     scripts/         build, dev server, link checker, survey table generator
-    tests/           120 tests
+    tests/           145 tests
 
 ## Run and test
 
     cd project/site
     npm install          # dev dependency (jsdom) for the UI tests only
     npm run dev          # http://localhost:3000   (PORT=3011 npm run dev to change)
-    npm test             # 120 tests (builds first)
+    npm test             # 145 tests (builds first)
     node scripts/check-links.mjs   # checks every external source link (needs network)
 
 Locally, answers go to `.data/` and the admin key is `dev-admin-key`.
 
 ## What the tests cover
 
+Field by field (`tests/roundtrip.test.mjs`): the real review page is filled in using only the survey definition, every field with a distinct value (unicode, quotes, angle brackets, the longest allowed length), sent through the real client and API into the production storage path, read back through the admin export and compared value by value. Three runs cover every question and branch (all fields; required only; a different role with an optional swap link), plus the interview form, every quick-feedback scene, every option of every choice question and every scale point, and the exact length limits. A final check fails if any question in the survey was never exercised.
 Backend (API): validation of every field, strict rejection of unknown or hidden answers, size limits, honeypot, prototype pollution, duplicate submissions, contact details stored apart, admin key checks, CSV formula injection, small-group hiding in public stats. A fake Upstash server exercises the production storage path over HTTP, including 40 simultaneous submissions.
 Behaviour (browser-like): the question form (formatting, errors, presets), the four scenes with real encryption, the animated flowchart (steps, token, key pieces, autoplay, pause, reduced motion), voice input (switched off by default; its code is kept and tested with a fake speech engine, and a separate test proves nothing voice-related appears with the shipped defaults), the whole review (typed and spoken answers, optional pages, follow-up call, receipt, retries, resume after refresh), the interview request, home path, the course tab router, the setter prototype, live results, the admin view.
 Structure: no dead links or anchors, no unsafe DOM writes, no third-party scripts, survey definition coherence, redirects.
@@ -41,12 +42,15 @@ Already connected: GitHub `hrsh-kr/leakproof-uss`, root directory `site/`, pushe
 2. **Admin key** (once): Settings, Environment Variables, add `ADMIN_KEY` (at least 8 characters). Redeploy afterwards.
 3. Open `/review`, submit once, check it at `/admin`, then flush test data in the Upstash console before sharing.
 
+To check that every field really reaches the real database: run `npm run dev` with the Upstash variables loaded (`node --env-file=.env.local scripts/dev.mjs` after `vercel env pull`), fill in `/review`, `/interview` and a quick-feedback box, read the records back through `/admin`, and delete only the test keys (`lp:*`) afterwards. This was done on 2 Oct 2026: 58 fields in the full review, 26 in the minimal one, 6 in the interview request, 4 quick comments, all read back identical; the database was emptied afterwards.
+
 ## Data
 
-`/admin` lists free-text answers to code, interview requests with slot popularity, and a CSV download. Or:
+`/admin` lists who gave reviews (email, role, time, tasks finished, swap link, call request; repeat emails are flagged), free-text answers to code, interview requests with slot popularity, and CSV downloads for answers and for participants. Or:
 
     curl -H "x-admin-key: YOUR_KEY" "https://YOUR-SITE/api/export?format=csv" -o responses.csv
     curl -H "x-admin-key: YOUR_KEY" "https://YOUR-SITE/api/export?include=contact"
+    curl -H "x-admin-key: YOUR_KEY" "https://YOUR-SITE/api/export?kind=participants&format=csv"   # who gave each review: email, role, swap link, call slots
 
 ## Changing things
 
@@ -54,7 +58,7 @@ Questions, interview slots and modes: `src/js/survey-def.mjs` only (page and ser
 
 ## Safety notes
 
-No third-party scripts, trackers or fonts. The site denies microphone access entirely. Public stats are aggregates and hide groups under 5. Names and contact details are stored apart from answers and are not in the default export. Responses are append-only; delete raw data from the Upstash console after the final report.
+No third-party scripts, trackers or fonts. The site denies microphone access entirely. Public stats are aggregates and hide groups under 5. Email (required for the review), swap link, name and contact details are stored apart from answers (a separate `contact` record) and are not in the analysis export or public stats; the admin view joins them by receipt code. The receipt shows only a masked email. Responses are append-only; delete raw data from the Upstash console after the final report.
 
 ## Voice input
 

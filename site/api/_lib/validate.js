@@ -1,5 +1,6 @@
 // Strict validation of submissions against the survey definition (the same file the page renders from).
 import { flatten, visible, requiredNow, CONTACT_IDS, TASK_IDS, QUICK_SCENES, INTERVIEW } from '../../src/js/survey-def.mjs';
+import { FORMATS } from '../../src/js/validators.mjs';
 
 export const LIMITS = { body: 60000, quickComment: 1000 };
 const ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
@@ -45,6 +46,12 @@ function checkAnswers(qs, a) {
         if (t.length > (q.maxLen || 1000)) { errors.push(`${q.id} is too long`); break; }
         if (t && q.minLen && t.length < q.minLen) { errors.push(`${q.id} is too short`); break; }
         if (need && !t) { errors.push(`${q.id} is required`); break; }
+        if (t && q.format) {
+          const F = FORMATS[q.format];
+          if (!F || !F.check(t)) { errors.push(`${q.id} is not a valid ${q.format}`); break; }
+          clean[q.id] = F.normalize(t);
+          break;
+        }
         if (t) clean[q.id] = t;
         break;
       }

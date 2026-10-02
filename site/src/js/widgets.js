@@ -1,6 +1,7 @@
 // Question widgets shared by the review and the interview form. `answers` is a plain object that is
 // updated in place; onChange() is called after every change (used to save progress).
 import { visible, requiredNow } from './survey-def.mjs';
+import { FORMATS } from './validators.mjs';
 import { voiceControl } from './voice.js';
 import { h } from './dom.js';
 
@@ -51,9 +52,12 @@ export function createWidgets(answers, onChange = () => {}) {
   }
   function textQ(q, onAny, forceId) {
     const id = forceId || q.id;
-    const short = (q.maxLen || 0) <= 200;
+    const short = !!q.format || (q.maxLen || 0) <= 200;
+    const attrs = q.format === 'email' ? { type: 'email', inputmode: 'email', autocomplete: 'email', spellcheck: 'false', autocapitalize: 'none' }
+      : q.format === 'url' ? { type: 'url', inputmode: 'url', autocomplete: 'url', spellcheck: 'false', autocapitalize: 'none', placeholder: 'https://' }
+      : { type: 'text' };
     const field = short
-      ? h('input', { class: 'rv-input', type: 'text', maxlength: String(q.maxLen || 200), 'aria-label': q.label || id })
+      ? h('input', { class: 'rv-input', ...attrs, maxlength: String(q.maxLen || 200), 'aria-label': q.label || id })
       : h('textarea', { rows: '4', maxlength: String(q.maxLen || 1000), 'aria-label': q.label || id });
     field.value = answers[id] || '';
     field.addEventListener('input', () => { setAnswer(id, field.value.trim() ? field.value : ''); onAny(); });
@@ -110,6 +114,13 @@ export function createWidgets(answers, onChange = () => {}) {
       const empty = v == null || v === '' || (Array.isArray(v) && v.length === 0);
       if (q.type === 'consent' ? v !== true : empty) miss.push(q);
       else if (q.minLen && typeof v === 'string' && v.trim().length < q.minLen) miss.push(q);
+      else if (q.format && typeof v === 'string' && !FORMATS[q.format].check(v)) miss.push({ ...q, why: 'format' });
+    }
+    // an optional field that is filled in must still be valid
+    for (const q of qs) {
+      if (!q.format || !visible(q, answers) || requiredNow(q, answers)) continue;
+      const v = answers[q.id];
+      if (typeof v === 'string' && v && !FORMATS[q.format].check(v)) miss.push({ ...q, why: 'format' });
     }
     return miss;
   }

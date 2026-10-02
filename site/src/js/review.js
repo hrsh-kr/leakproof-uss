@@ -4,6 +4,7 @@ import { SCENES } from './scenes.js';
 import { SAMPLES } from './paper.js';
 import { createWidgets } from './widgets.js';
 import { postJson, newClientId } from './api.js';
+import { FORMATS, maskEmail } from './validators.mjs';
 import { h, fill, $ } from './dom.js';
 
 const KEY = 'lp-review-v1';
@@ -52,8 +53,8 @@ export function startReview(root, opts = {}) {
     return { title: 'Help us test an idea', body: [
       h('div', { class: 'callout' }, h('strong', null, 'Thank you for helping.'), ' We are a team in Usable Security and Privacy at IIIT-Delhi. We are designing a way to stop exam papers leaking, and we want to find out what is unclear before we build the real tool.'),
       h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you will do'), list([`Try four small working prototypes, one task each, then answer a few questions. About ${STUDY.approxMinutes} minutes, on a phone or laptop.`, 'You are testing the design, not yourself. There are no wrong answers, and honest criticism helps most.'])),
-      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What we collect'), list(['Your answers, how long each task takes, and how many taps you make.', 'No name unless you choose to add one at the end. Names and contact details are stored apart from your answers.', 'We use answers only for this course project and quote them without names.'])),
-      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you get'), list(['A participation receipt at the end. The course gives 1% for every five studies you take part in. Ask your TA how to log it.', 'You can stop at any time by closing the tab.'])),
+      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What we collect'), list(['Your answers, how long each task takes, and how many taps you make.', 'Your email, so we can confirm you took part and match your answers to you. It is stored apart from your answers, never shown publicly and not used in any report. A name is optional.', 'We use answers only for this course project and quote them without names.'])),
+      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you get'), list(['A participation receipt at the end. The course gives 1% for every five studies you take part in. Ask your TA how to log it.', 'If you are in this course, a swap: you share your own study link and we take part in yours.', 'You can stop at any time by closing the tab.'])),
       ...nodes], validate: () => W.missingIn(section('intro').questions), next: 'Start' };
   }
   function taskPage(t) {
@@ -115,7 +116,7 @@ export function startReview(root, opts = {}) {
     const nextBtn = h('button', { class: 'btn', type: 'button', 'data-nav': 'next' }, isFinish ? 'Submit and get my receipt' : (p.next || 'Next'));
     nextBtn.addEventListener('click', async () => {
       const miss = p.validate();
-      if (miss.length) { err.textContent = 'Please answer: ' + miss.map((q) => q.label.replace(/\s+/g, ' ').slice(0, 70)).join(' · '); if (err.scrollIntoView) err.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+      if (miss.length) { err.textContent = 'Please answer: ' + miss.map((q) => (q.why === 'format' ? `${q.label.replace(/\s+/g, ' ').slice(0, 50)} (enter ${FORMATS[q.format].hint})` : q.label.replace(/\s+/g, ' ').slice(0, 70))).join(' · '); if (err.scrollIntoView) err.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
       if (isFinish) { nextBtn.disabled = true; await submit(nextBtn); return; }
       show(all[i + 1].key);
     });
@@ -144,7 +145,7 @@ export function startReview(root, opts = {}) {
     const r = await (opts.post || postJson)('/api/submit', payload);
     if (r.ok) {
       const slots = (state.answers.c_slots || []).map((v) => (SLOTS.find((s) => s.value === v) || {}).label).filter(Boolean);
-      state.receipt = { code: r.data.receipt, at: new Date().toISOString(), seconds: payload.totalSeconds, interview: state.answers.followup === 'yes', slots };
+      state.receipt = { code: r.data.receipt, at: new Date().toISOString(), seconds: payload.totalSeconds, interview: state.answers.followup === 'yes', slots, who: maskEmail(state.answers.email || ''), swap: state.answers.c_link || '' };
       save(); renderReceipt(); return;
     }
     btn.disabled = false;
@@ -161,12 +162,13 @@ export function startReview(root, opts = {}) {
   function renderReceipt() {
     const r = state.receipt;
     const when = new Date(r.at);
-    const text = `Participation receipt\nStudy: ${STUDY.title}\nTeam: ${STUDY.team}\nDate: ${when.toLocaleString()}\nTime taken: about ${mins(r.seconds)}\nReceipt code: ${r.code}`;
+    const text = `Participation receipt\nStudy: ${STUDY.title}\nTeam: ${STUDY.team}\nParticipant: ${r.who || 'not given'}\nDate: ${when.toLocaleString()}\nTime taken: about ${mins(r.seconds)}\nReceipt code: ${r.code}`;
     const copyBtn = h('button', { class: 'btn', type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(text); copyBtn.textContent = 'Copied'; } catch { copyBtn.textContent = 'Select the text and copy it'; } } }, 'Copy receipt');
     fill(shell, [h('div', { class: 'rv-step' }, h('h2', { tabindex: '-1', id: 'rv-h' }, 'Thank you. You are done.'),
       h('p', { class: 'rv-intro' }, 'Your answers are saved. Here is your participation receipt.'),
+      r.swap ? h('div', { class: 'callout' }, h('strong', null, 'Swap. '), 'We will take part in your study: ', FORMATS.url.check(r.swap) ? h('a', { href: r.swap, target: '_blank', rel: 'noopener noreferrer' }, r.swap) : r.swap) : null,
       r.interview ? h('div', { class: 'callout' }, h('strong', null, 'Your call. '), `We will message you to confirm one of the times you picked${r.slots && r.slots.length ? ': ' + r.slots.join('; ') : ''}.`) : null,
-      h('div', { class: 'receipt' }, h('dl', null, h('dt', null, 'Study'), h('dd', null, STUDY.title), h('dt', null, 'Team'), h('dd', null, STUDY.team), h('dt', null, 'Date'), h('dd', null, when.toLocaleString()),
+      h('div', { class: 'receipt' }, h('dl', null, h('dt', null, 'Study'), h('dd', null, STUDY.title), h('dt', null, 'Team'), h('dd', null, STUDY.team), h('dt', null, 'Participant'), h('dd', null, r.who || 'not given'), h('dt', null, 'Date'), h('dd', null, when.toLocaleString()),
         h('dt', null, 'Time taken'), h('dd', null, `About ${mins(r.seconds)}`), h('dt', null, 'Receipt code'), h('dd', { class: 'mono', style: 'font-size:1.1rem' }, r.code))),
       h('div', { class: 'cta', style: 'justify-content:flex-start' }, copyBtn),
       h('p', { class: 'fineprint' }, 'Take a screenshot or copy the receipt. The course gives 1% for every five studies you take part in. Ask your TA how to log it. If you added your name, we can confirm your participation if asked.'),

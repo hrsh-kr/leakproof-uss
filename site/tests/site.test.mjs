@@ -95,7 +95,7 @@ test('pages generated from the project docs are populated', () => {
   assert.match(html.course, /R-S01/);
   assert.match(html.course, /R-U01/);
   assert.match(html.course, /T-24/);
-  assert.equal((html.course.match(/<details class="decision">/g) || []).length, 17, 'seventeen decisions');
+  assert.equal((html.course.match(/<details class="decision">/g) || []).length, 19, 'nineteen decisions');
   assert.match(html.course, /A11/);
   assert.match(html.course, /RQ6/);
 });

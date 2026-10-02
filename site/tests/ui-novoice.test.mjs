@@ -32,7 +32,7 @@ test('voice is off by default', () => {
 test('the review shows plain text boxes with no microphone, even where the browser supports speech', async () => {
   setupDom('review', { speech: Rec });
   startReview(document.getElementById('review-root'), { post: async () => ({ ok: true, data: { receipt: 'LP-X' } }) });
-  click(document.querySelector('#consent-box')); next();
+  click(document.querySelector('#consent-box')); type(q('email').querySelector('input'), 'a@example.com'); next();
   click(q('role').querySelector('input[value=other]')); click(q('device').querySelector('input[value=phone]')); next();
   assert.ok(q('model').querySelector('textarea'), 'the open question is still there');
   assert.equal(document.querySelectorAll('.mic, .mic-row').length, 0);

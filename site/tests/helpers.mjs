@@ -23,7 +23,7 @@ let counter = 0;
 export const cid = () => 'client-' + String(++counter).padStart(6, '0') + '-abcdef';
 
 export function validReview(over = {}, metricsOver = {}) {
-  const answers = { consent: true, role: 'course_peer', device: 'phone', leakwhere: ['press'], trust_before: 3, accept_before: 3,
+  const answers = { consent: true, email: 'tester@example.com', c_link: 'https://example.com/my-study', role: 'course_peer', device: 'phone', leakwhere: ['press'], trust_before: 3, accept_before: 3,
     t1_check: 'a', t1_seq: 5, t1_stuck: 'no', t2_check: 'a', t2_seq: 6, t2_stuck: 'no', t3_check: 'a', t3_seq: 4, t3_stuck: 'no', t3_fair: 3, t4_check: 'a', t4_seq: 5, t4_stuck: 'no',
     explain: 'It locks the paper until several people agree.', umux1: 5, umux2: 6, trust_after: 4, accept_after: 4, hardest: 'none', ...over };
   const m = (s) => ({ seconds: s, actions: 8, result: 'done' });

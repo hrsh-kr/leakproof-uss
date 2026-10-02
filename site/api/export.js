@@ -1,8 +1,9 @@
-// GET /api/export  (header x-admin-key). ?format=csv&kind=reviews|quick, ?include=contact
+// GET /api/export  (header x-admin-key). ?format=csv&kind=reviews|quick|participants, ?include=contact, ?kind=participants (json)
 import { getStore } from './_lib/store.js';
 import { checkAdmin } from './_lib/auth.js';
 import { csvRow } from './_lib/csv.js';
-import { flatten } from '../src/js/survey-def.mjs';
+import { buildParticipants, PARTICIPANT_COLUMNS } from './_lib/participants.js';
+import { flatten, CONTACT_IDS } from '../src/js/survey-def.mjs';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).json({ error: 'method not allowed' }); }
@@ -16,12 +17,20 @@ export default async function handler(req, res) {
     const reviews = (await store.list('review')).sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
     const quick = (await store.list('quick')).sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
     res.setHeader('Cache-Control', 'no-store');
+    if (q.kind === 'participants') {
+      const rows = buildParticipants(reviews, await store.list('contact'));
+      if (q.format === 'csv') {
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        return res.status(200).send([csvRow(PARTICIPANT_COLUMNS), ...rows.map((r) => csvRow(PARTICIPANT_COLUMNS.map((c) => r[c])))].join('\n'));
+      }
+      return res.status(200).json({ participants: rows });
+    }
     if (q.format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       if (q.kind === 'quick') {
         return res.status(200).send([csvRow(['id', 'receivedAt', 'scene', 'clear', 'comment']), ...quick.map((x) => csvRow([x.id, x.receivedAt, x.scene, x.clear, x.comment]))].join('\n'));
       }
-      const ids = flatten().filter((x) => x.type !== 'task' && !['c_contact', 'c_name'].includes(x.id)).map((x) => x.id);
+      const ids = flatten().filter((x) => x.type !== 'task' && !CONTACT_IDS.includes(x.id)).map((x) => x.id);
       const tasks = ['t1', 't2', 't3', 't4'];
       const head = ['id', 'receipt', 'receivedAt', 'totalSeconds', 'optionalDone', ...ids, ...tasks.flatMap((t) => [`${t}_seconds`, `${t}_actions`, `${t}_result`])];
       const rows = reviews.map((r) => csvRow([r.id, r.receipt, r.receivedAt, r.totalSeconds, r.optionalDone, ...ids.map((i) => r.answers[i]), ...tasks.flatMap((t) => [r.metrics[t]?.seconds, r.metrics[t]?.actions, r.metrics[t]?.result])]));

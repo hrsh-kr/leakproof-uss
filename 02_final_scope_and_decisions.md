@@ -156,6 +156,19 @@ Questions must be decrypted once so a paper can be sealed. Options:
 - **Our own survey on the site, typed only, plus an interview booking form.** Pros: one place for everything; task timing, taps and ratings recorded; live results; contact details stored apart; people who prefer to talk book a real conversation, which is richer than a recording. Cons: typing takes more effort; we need our own storage and tests.
 - **Choice: our own survey, typed, with interview booking. Dictation is switched off by a flag (`config.mjs`) and its code and tests are kept.** Revisit if: people skip the open questions because typing is hard. Then try recording short audio notes and transcribing them ourselves, with clear consent.
 
+### D18. Knowing who gave each review (added 2 Oct)
+- **Anonymous reviews only.** Pros: most honest answers; least data to protect. Cons: we cannot tell which classmate gave which feedback, cannot confirm participation for credit, cannot spot the same person submitting twice, cannot follow up.
+- **Email asked but optional.** Pros: low friction. Cons: most people skip it, so we cannot rely on it; those who give it differ from those who do not; credit checks stay unreliable.
+- **Email required for the 12-minute review, stored apart from the answers.** Pros: every review can be tied to a person for credit, swaps and follow-ups; repeats are flagged; analysis files and public results stay free of identity because the two are joined only by a receipt code, and only in the team-only admin view. Cons: a little more effort at the start; some people may leave or answer less candidly; we now hold personal data and must delete it.
+- **Choice: required, stored in a separate record, never in the analysis export, public results or the report; masked on the receipt; deleted after the final report.** Assumption: people taking part are classmates, faculty and exam staff who are comfortable giving an email for a course study; no one under 18. The interview form and the quick one-tap comments are unchanged (the first needs contact details anyway; the second stays anonymous). Revisit if: the pilot shows people abandoning at the email field. Then make it optional for people outside the course and keep it required for classmates.
+
+### D19. The swap link, a fair trade (added 2 Oct)
+- **No swap.** Pros: simplest. Cons: we lose the chance to take part in return, which is how the course expects groups to help each other (1% per five studies).
+- **Ask for a link, optional for everyone.** Pros: no friction. Cons: few will offer it; no fairness.
+- **Required for everyone.** Pros: one simple rule. Cons: people outside the course have no study to share and would paste fake links; it forces an action that makes no sense for them.
+- **Required for classmates, optional for everyone else.** Pros: matches the course; no fake links; the ask comes on the last page, after the person has already been helped by our study (the favour is asked after the value is given). Cons: it relies on people picking their own role honestly; we cannot verify it.
+- **Choice: required when the person says they are a student in this course, optional otherwise.** The link must be a plain web link (https or http, no username or password, no scripts). The admin view makes it clickable only when it is a web link. Assumption: classmates will have a study link by the time they answer. Revisit if: classmates say they have nothing to share yet. Then allow "coming soon" and ask again later.
+
 ## 5. What we do not know yet (research questions)
 
 Each question can change a decision. The studies in `03_phase1_plan_oct4.md` are designed to answer them.

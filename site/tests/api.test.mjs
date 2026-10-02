@@ -316,3 +316,100 @@ test('interview request: required fields, valid choices, no extras, one per pers
   assert.equal((await post(hp)).statusCode, 200);
   assert.equal((await new FileStore(process.env.LEAKPROOF_DATA_DIR).list('contact')).length, before);
 });
+
+/* ---------- who gave the review: email and swap link ---------- */
+const liveStore = () => new FileStore(process.env.LEAKPROOF_DATA_DIR); // an earlier test switches to a fresh folder
+const participants = async () => (await adminGet({ kind: 'participants' })).body.participants;
+
+test('email is required, and every answer that is not a plain email address is refused', async () => {
+  const noEmail = validReview(); delete noEmail.answers.email;
+  const r0 = await post(noEmail);
+  assert.equal(r0.statusCode, 400); assert.ok(r0.body.errors.some((e) => /email is required/.test(e)));
+  const bad = ['', '   ', 'plainaddress', '@example.com', 'a@', 'a@b', 'a@b.c', 'a b@example.com', 'a@exa mple.com', 'a@@example.com', 'a..b@example.com', '.a@example.com', 'a.@example.com',
+    'a@-example.com', 'a@example-.com', 'a@example..com', '<script>@example.com', 'a,b@example.com', 'a;b@example.com', '"a"@example.com', 'ａ@example.com', 'a@example.com\nBcc: x@y.com',
+    `${'a'.repeat(65)}@example.com`, `a@${'b'.repeat(120)}.com`, 'mailto:a@example.com', 'a@example.com, b@example.com', 'a@exämple.com'];
+  for (const e of bad) {
+    const r = await post(validReview({ email: e }));
+    assert.equal(r.statusCode, 400, `${JSON.stringify(e)} should be refused`);
+  }
+  for (const wrong of [123, true, null, ['a@example.com'], { a: 'b@example.com' }]) {
+    assert.equal((await post(validReview({ email: wrong }))).statusCode, 400, `${JSON.stringify(wrong)} should be refused`);
+  }
+});
+
+test('email is trimmed and lower-cased, and stored only in the contact record', async () => {
+  const r = await post(validReview({ email: '  Priya.Sharma+Course@IIITD.AC.IN  ' }));
+  assert.equal(r.statusCode, 200);
+  const contact = (await liveStore().list('contact')).find((c) => c.receipt === r.body.receipt);
+  assert.equal(contact.email, 'priya.sharma+course@iiitd.ac.in');
+  const review = (await liveStore().list('review')).find((x) => x.receipt === r.body.receipt);
+  assert.ok(!('email' in review.answers) && !JSON.stringify(review).toLowerCase().includes('iiitd'));
+  assert.ok(!JSON.stringify((await call(stats, {})).body).toLowerCase().includes('iiitd'));
+  assert.ok(!JSON.stringify((await adminGet()).body).toLowerCase().includes('iiitd'), 'not in the default export');
+  assert.ok(!(await adminGet({ format: 'csv' })).body.toLowerCase().includes('iiitd'), 'not in the analysis CSV');
+});
+
+test('the swap link: required for classmates, optional for others, and only a plain web link is accepted', async () => {
+  const peer = validReview({ role: 'course_peer' }); delete peer.answers.c_link;
+  const r1 = await post(peer);
+  assert.equal(r1.statusCode, 400); assert.ok(r1.body.errors.some((e) => /c_link is required/.test(e)));
+  assert.equal((await post(validReview({ role: 'course_peer', c_link: '   ' }))).statusCode, 400, 'blank is not a link');
+  for (const role of ['other_student', 'faculty_ta', 'exam_staff', 'other']) {
+    const o = validReview({ role }); delete o.answers.c_link;
+    assert.equal((await post(o)).statusCode, 200, `${role} may skip the link`);
+  }
+  const bad = ['forms.gle/abc', 'www.example.com', '//example.com', 'javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>alert(1)</script>', 'file:///etc/passwd', 'ftp://example.com/x',
+    'https://user:pass@example.com/x', 'https://user@example.com', 'https://exa mple.com', 'https://', 'https://example', 'https://-bad.com', 'https://bad-.com', 'https:example.com', 'https://example.com/ with space',
+    `https://example.com/${'a'.repeat(300)}`, 'https://example.com\nhttps://evil.com', 'http:/example.com'];
+  for (const link of bad) {
+    assert.equal((await post(validReview({ role: 'course_peer', c_link: link }))).statusCode, 400, `${JSON.stringify(link)} should be refused`);
+    assert.equal((await post(validReview({ role: 'other', c_link: link }))).statusCode, 400, `${JSON.stringify(link)} should be refused even when optional`);
+  }
+  for (const wrong of [42, true, ['https://example.com'], { u: 'https://example.com' }]) assert.equal((await post(validReview({ c_link: wrong }))).statusCode, 400);
+  const ok = await post(validReview({ role: 'course_peer', c_link: ' https://Forms.GLE/AbC123?x=1 ' }));
+  assert.equal(ok.statusCode, 200);
+  const contact = (await liveStore().list('contact')).find((c) => c.receipt === ok.body.receipt);
+  assert.equal(contact.c_link, 'https://forms.gle/AbC123?x=1', 'host is normalised, path and case after it are kept');
+  const http = await post(validReview({ role: 'other', c_link: 'http://localhost:3000/survey' }));
+  assert.equal(http.statusCode, 200, 'plain http is allowed (some course tools are served that way)');
+  const review = (await liveStore().list('review')).find((x) => x.receipt === ok.body.receipt);
+  assert.ok(!('c_link' in review.answers) && !JSON.stringify((await call(stats, {})).body).includes('forms.gle'));
+});
+
+test('participants view: admin only, ties each review to its email, flags repeats, and is safe in a spreadsheet', async () => {
+  assert.equal((await call(exportApi, { method: 'GET', query: { kind: 'participants' } })).statusCode, 401);
+  assert.equal((await adminGet({ kind: 'participants' }, 'wrong-key-123')).statusCode, 401);
+  assert.equal((await adminGet({ kind: 'participants', format: 'csv' }, '')).statusCode, 401);
+  const a = await post(validReview({ email: 'repeat.person@example.com', c_link: 'https://example.com/a' }));
+  const b = await post(validReview({ email: 'Repeat.Person@Example.com', c_link: 'https://example.com/b' }));
+  const c = await post(validReview({ email: '=cmd@example.com', c_name: '=HYPERLINK("http://evil.example")' }));
+  assert.ok([a, b, c].every((r) => r.statusCode === 200));
+  const rows = await participants();
+  const mine = rows.filter((p) => p.email === 'repeat.person@example.com');
+  assert.equal(mine.length, 2); assert.ok(mine.every((p) => p.timesSeen === 2), 'the same email twice is flagged');
+  assert.deepEqual(mine.map((p) => p.receipt).sort(), [a.body.receipt, b.body.receipt].sort());
+  assert.ok(mine.every((p) => p.reviewFound && p.role === 'course_peer' && p.minutes >= 1 && p.completedTasks === 4));
+  const csv = (await adminGet({ kind: 'participants', format: 'csv' })).body;
+  assert.ok(csv.split('\n')[0].startsWith('receipt,receivedAt,email,name,role'));
+  assert.ok(csv.includes("'=cmd@example.com"), 'a leading = is neutralised');
+  assert.ok(csv.includes(`"'=HYPERLINK(""http://evil.example"")"`), 'a formula in the name is neutralised');
+  assert.ok(!/(^|,)=/m.test(csv));
+});
+
+test('two different people with the same email each get a receipt; the same person retrying gets one', async () => {
+  const one = validReview({ email: 'twin@example.com' });
+  const two = validReview({ email: 'twin@example.com' });
+  const r1 = await post(one), r2 = await post(two), r1again = await post(one);
+  assert.notEqual(r1.body.receipt, r2.body.receipt);
+  assert.equal(r1again.body.receipt, r1.body.receipt); assert.equal(r1again.body.duplicate, true);
+  assert.equal((await participants()).filter((p) => p.email === 'twin@example.com').length, 2);
+});
+
+test('an interview request or a quick comment can never appear as a reviewer, and carries no email', async () => {
+  const before = (await participants()).length;
+  await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_slots: ['sat3-am'], c_mode: 'meet', c_contact: 'x@y.co' } });
+  await post({ kind: 'quick', clientId: cid(), scene: '1', clear: 'yes', comment: 'ok' });
+  assert.equal((await participants()).length, before);
+  const iv = await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_slots: ['sat3-am'], c_mode: 'meet', c_contact: 'x@y.co', email: 'z@example.com' } });
+  assert.equal(iv.statusCode, 400, 'the interview form has no email field, so an extra one is refused');
+});

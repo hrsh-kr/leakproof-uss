@@ -33,8 +33,12 @@ export const MODES = [
 export const SECTIONS = [
   {
     id: 'intro', title: 'Before you start', kind: 'intro',
-    questions: [{ id: 'consent', type: 'consent', required: true,
-      label: 'I have read this and I agree to take part. I know I can stop at any time.' }],
+    questions: [
+      { id: 'consent', type: 'consent', required: true,
+        label: 'I have read this and I agree to take part. I know I can stop at any time.' },
+      { id: 'email', type: 'text', format: 'email', required: true, maxLen: 120,
+        label: 'Your email', help: 'So we can confirm you took part and match your answers to you. It is stored apart from your answers, never shown publicly, and not used in any report.' },
+    ],
   },
   {
     id: 'about', title: 'About you', intro: 'Three quick questions so we can tell different kinds of people apart.',
@@ -146,20 +150,23 @@ export const SECTIONS = [
   },
   {
     id: 'finish', title: 'One last thing', kind: 'finish',
-    intro: 'A short chat helps us far more than any form. Two optional things, then you get your participation receipt.',
+    intro: 'Swap links with us, and tell us if you would like a short chat. Then you get your participation receipt.',
     questions: [
+      { id: 'c_link', type: 'text', format: 'url', requiredIf: { id: 'role', equals: 'course_peer' }, maxLen: 300,
+        label: 'Your own study or survey link', help: 'A swap: we will take part in your study too. Required for classmates in this course. Optional for everyone else. Paste the link that starts with https://' },
       { id: 'followup', type: 'single', label: 'Would you be up for a short follow-up call (20 to 30 minutes)?', help: 'We will show you the prototypes, ask what you expected, and listen. No preparation needed.', options: [
         { value: 'yes', label: 'Yes, let us find a time' }, { value: 'no', label: 'No, thank you' }] },
       { id: 'c_slots', type: 'multi', showIf: { id: 'followup', equals: 'yes' }, requiredIf: { id: 'followup', equals: 'yes' }, label: 'When could you talk? Pick every slot that works.', help: 'All times are IST. We will confirm one by message.', options: SLOTS },
       { id: 'c_when', type: 'text', maxLen: 200, showIf: { id: 'followup', equals: 'yes' }, label: 'Another time that suits you better? (optional)', help: 'For example: "Thursday after 7 pm".' },
       { id: 'c_mode', type: 'single', showIf: { id: 'followup', equals: 'yes' }, requiredIf: { id: 'followup', equals: 'yes' }, label: 'How would you like to talk?', options: MODES },
       { id: 'c_contact', type: 'text', maxLen: 200, showIf: { id: 'followup', equals: 'yes' }, requiredIf: { id: 'followup', equals: 'yes' }, minLen: 5, label: 'How can we reach you?', help: 'Email, phone or WhatsApp number. Kept apart from your answers and used only to arrange the call.' },
-      { id: 'c_name', type: 'text', maxLen: 120, label: 'Your name, if you want us to be able to confirm you took part.', help: 'Optional. Kept apart from your answers. Leave it empty to stay anonymous.' },
+      { id: 'c_name', type: 'text', maxLen: 120, label: 'Your name, if you want us to be able to confirm you took part.', help: 'Optional. Kept apart from your answers.' },
     ],
   },
 ];
 
-export const CONTACT_IDS = ['c_contact', 'c_name', 'c_slots', 'c_when', 'c_mode', 'c_topic'];
+// These are stored in the separate contact record, never with the answers used for analysis.
+export const CONTACT_IDS = ['email', 'c_link', 'c_contact', 'c_name', 'c_slots', 'c_when', 'c_mode', 'c_topic'];
 
 /** The standalone "talk to us" form at /interview. */
 export const INTERVIEW = {

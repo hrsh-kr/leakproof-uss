@@ -13,8 +13,9 @@ The first screen says, in plain words:
 - **Who we are** and what we are building, in one sentence.
 - **What you will do:** four small working prototypes, one task each, then a few questions; about 12 to 15 minutes; phone or laptop.
 - **That we test the design, not them.** No wrong answers; honest criticism helps most.
-- **What we collect:** answers, task times, tap counts; no name unless they add one for credit; names and contact are stored apart from answers; used only for the course project and quoted without names.
-- **What they get:** a participation receipt, and how it counts (1% per five studies; ask the TA how to log it).
+- **What we collect:** answers, task times, tap counts, and an **email** (required, so we can match each review to a person for credit and follow-ups); a name is optional. Email, name and contact details are stored apart from the answers and are not used in any report; answers are used only for the course project and quoted without names. See D18.
+- **What they get:** a participation receipt (showing a masked email), and how it counts (1% per five studies; ask the TA how to log it).
+- **A swap for classmates:** on the last page, students in this course share the link to their own study and we take part in it. Required for them, optional for everyone else. See D19.
 - A consent checkbox they must tick to start.
 
 ## 3. How we ask (rules)
@@ -62,7 +63,7 @@ Public results show numbers only when 5 or more people contribute. Free text is 
 
 ## 6. Privacy and ethics
 
-Data minimisation (no name or email unless the person chooses); contact and name stored separately; group results hidden under 5 people; no third-party scripts or trackers; storage in a private database; admin export protected by a key; deletion of raw data after the final report. Ask the TA whether a consent sheet is enough or ethics approval is needed.
+Data minimisation (email is the one required identifier, to tie reviews to people; name optional); email, name, swap link and contact stored separately from the answers and joined only by receipt code in the team-only admin view; the receipt shows a masked email; group results hidden under 5 people; no third-party scripts or trackers; storage in a private database; admin export protected by a key; deletion of raw data after the final report. Ask the TA whether a consent sheet is enough or ethics approval is needed.
 
 ## 7. Pilot before sharing widely
 
@@ -76,6 +77,7 @@ Data minimisation (no name or email unless the person chooses); contact and name
 | Section | Id | Type | Required | Question | Options or scale |
 | --- | --- | --- | --- | --- | --- |
 | Before you start | `consent` | consent | yes | I have read this and I agree to take part. I know I can stop at any time. |  |
+| Before you start | `email` | text | yes | Your email |  |
 | About you | `role` | single | yes | Which describes you best? | A student in this course / A student, not in this course / Faculty or a TA / Someone who helps run exams / Something else |
 | About you | `exams` | multi | no | Which exams have you taken or helped run? | NEET / JEE / CUET / UGC-NET / State PSC or police recruitment / SSC or Railways / University exams / None of these |
 | About you | `device` | single | yes | What are you using right now? | A phone / A laptop or desktop / A tablet |
@@ -129,6 +131,7 @@ Data minimisation (no name or email unless the person chooses); contact and name
 | Our design choices: your verdict | `d_log_why` | text | no | Why? (optional) |  |
 | Think like the person running it | `hitl` | multi | no | Where might things go wrong for that person? Pick up to two. | They might not realise they have to do it / They might not understand what the screen asks / They might not know how to do it / They might not be motivated to follow every step / They might not be able to (device, power, time) / They might skip steps under pressure |
 | Think like the person running it | `missing` | text | no | What is missing? What would you add or remove? |  |
+| One last thing | `c_link` | text | if role = course_peer | Your own study or survey link |  |
 | One last thing | `followup` | single | no | Would you be up for a short follow-up call (20 to 30 minutes)? | Yes, let us find a time / No, thank you |
 | One last thing | `c_slots` | multi | if followup = yes | When could you talk? Pick every slot that works. | Sat 3 Oct, 10 am to 1 pm / Sat 3 Oct, 2 pm to 5 pm / Sat 3 Oct, 6 pm to 9 pm / Sun 4 Oct, 10 am to 1 pm / Sun 4 Oct, 2 pm to 5 pm / Mon 5 Oct, 6 pm to 9 pm / Later in the week (I will say when below) |
 | One last thing | `c_when` | text | shown if followup = yes | Another time that suits you better? (optional) |  |

@@ -22,7 +22,7 @@ const { SECTIONS } = await import('../src/js/survey-def.mjs');
 const q = (id) => document.querySelector(`[data-q="${id}"]`);
 const radio = (id, v) => click(q(id).querySelector(`input[value="${v}"]`));
 const check = (id, vs) => vs.forEach((v) => click(q(id).querySelector(`input[value="${v}"]`)));
-const say = (id, t) => { const f = q(id).querySelector('textarea,input[type=text]'); type(f, t); };
+const say = (id, t) => { const f = q(id).querySelector('textarea,input[type=text],input[type=email],input[type=url]'); type(f, t); };
 const next = async () => { click(document.querySelector('[data-nav=next]')); await tick(30); };
 const title = () => text(document.querySelector('#rv-h'));
 const err = () => text(document.querySelector('.rv-err'));
@@ -36,7 +36,7 @@ function newReview(post) {
 }
 
 async function fillIntroAboutBefore() {
-  click(document.querySelector('#consent-box')); await next();
+  click(document.querySelector('#consent-box')); say('email', 'asha@example.com'); await next();
   radio('role', 'course_peer'); radio('device', 'phone'); check('exams', ['neet']); await next();
   check('leakwhere', ['press', 'storage']); radio('trust_before', '2'); radio('accept_before', '3'); say('model', 'It travels by courier.'); await next();
 }
@@ -91,6 +91,9 @@ test('review: full submission contents (typed + voice), optional parts, follow-u
   assert.match(title(), /One last thing/);
   // follow-up: choosing yes reveals and requires the call details
   assert.equal(q('c_slots').hidden, true);
+  await next(); assert.match(err(), /Your own study or survey link/, 'classmates must share their own study link');
+  say('c_link', 'forms.gle/no-scheme'); await next(); assert.match(err(), /Your own study or survey link.*link that starts with https/);
+  say('c_link', 'https://forms.gle/AsHa123');
   radio('followup', 'yes');
   assert.equal(q('c_slots').hidden, false); assert.equal(q('c_mode').hidden, false); assert.equal(q('c_contact').hidden, false);
   await next(); assert.match(err(), /When could you talk/);
@@ -101,6 +104,7 @@ test('review: full submission contents (typed + voice), optional parts, follow-u
   assert.equal(url, '/api/submit'); assert.equal(payload.kind, 'review');
   assert.equal(payload.optionalDone, true);
   assert.equal(payload.answers.consent, true);
+  assert.equal(payload.answers.email, 'asha@example.com'); assert.equal(payload.answers.c_link, 'https://forms.gle/AsHa123');
   assert.deepEqual(payload.answers.leakwhere, ['press', 'storage']);
   assert.equal(payload.answers.explain, 'it locks the paper until several people agree');
   assert.equal(payload.answers.t1_incident, 'I could not find the control.');
@@ -116,6 +120,10 @@ test('review: full submission contents (typed + voice), optional parts, follow-u
   // receipt
   assert.match(title(), /Thank you. You are done/);
   const receipt = text(document.querySelector('.receipt'));
+  assert.match(receipt, /Participant\s*as\*\*\*@example\.com/, 'the receipt shows a masked email, not the full address');
+  assert.ok(!receipt.includes('asha@example.com'));
+  assert.match(text(document.body), /Swap\. We will take part in your study: https:\/\/forms\.gle\/AsHa123/);
+  assert.equal(document.querySelector('.callout a[href="https://forms.gle/AsHa123"]').getAttribute('rel'), 'noopener noreferrer');
   assert.match(receipt, /LP-TEST1234/); assert.match(receipt, /Sat 3 Oct, 2 pm to 5 pm/.test(text(document.body)) ? /LeakProof remote usability test/ : /LeakProof/);
   assert.match(text(document.body), /Your call\..*Sat 3 Oct, 2 pm to 5 pm; Sun 4 Oct, 10 am to 1 pm/);
   assert.ok(document.querySelector('.receipt dd.mono'));
@@ -133,6 +141,10 @@ test('review: gates stop incomplete steps and say why', async () => {
   newReview(okPost([]));
   await next(); assert.match(err(), /I have read this and I agree/);
   click(document.querySelector('#consent-box')); await next();
+  assert.match(err(), /Your email/, 'the email is required before anything else');
+  say('email', 'not an email'); await next(); assert.match(err(), /Your email.*valid email address/);
+  say('email', 'asha@@example'); await next(); assert.match(title(), /Help us test an idea/);
+  say('email', 'asha@example.com'); await next();
   assert.match(title(), /About you/);
   await next(); assert.match(err(), /Which describes you best/); assert.match(err(), /What are you using/);
   radio('role', 'faculty_ta'); radio('device', 'laptop'); await next();
@@ -163,6 +175,7 @@ test('review: choosing "No, finish now" skips the optional pages and submits wit
   click([...document.querySelectorAll('.btn')].find((b) => /No, finish now/.test(b.textContent))); await tick(20);
   assert.match(title(), /One last thing/);
   assert.equal(q('c_slots').hidden, true);
+  say('c_link', 'https://forms.gle/AsHa123');
   radio('followup', 'no');
   await next(); await tick(30);
   assert.equal(calls.length, 1);
@@ -174,7 +187,7 @@ test('review: choosing "No, finish now" skips the optional pages and submits wit
 
 test('review: progress survives a refresh, and after submitting the receipt stays instead of resubmitting', async () => {
   const calls = []; const { root } = newReview(okPost(calls));
-  click(document.querySelector('#consent-box')); await next();
+  click(document.querySelector('#consent-box')); say('email', 'asha@example.com'); await next();
   radio('role', 'other'); radio('device', 'tablet'); await next();
   check('leakwhere', ['written']);
   assert.match(title(), /Before you see anything/);
@@ -195,6 +208,7 @@ test('review: when the server cannot save, the person keeps their answers and ca
   radio('umux1', '4'); radio('umux2', '4'); radio('trust_after', '3'); radio('accept_after', '3'); radio('hardest', 'none'); say('explain', 'It keeps papers secret until the exam.');
   await next();
   click([...document.querySelectorAll('.btn')].find((b) => /No, finish now/.test(b.textContent))); await tick(20);
+  say('c_link', 'https://forms.gle/AsHa123');
   radio('followup', 'no');
   await next(); await tick(20);
   assert.match(err(), /not connected to storage yet.*still in this tab/);
@@ -224,7 +238,7 @@ test('review: the tasks always use the fixed sample paper, even if the visitor c
 test('review: the task timer shows the guide time has passed after two minutes', async (t) => {
   t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
   newReview(okPost([]));
-  click(document.querySelector('#consent-box'));
+  click(document.querySelector('#consent-box')); say('email', 'asha@example.com');
   click(document.querySelector('[data-nav=next]'));
   radio('role', 'other'); radio('device', 'phone'); click(document.querySelector('[data-nav=next]'));
   check('leakwhere', ['press']); radio('trust_before', '3'); radio('accept_before', '3'); click(document.querySelector('[data-nav=next]'));
@@ -415,18 +429,32 @@ test('admin: wrong key is refused, the right key lists answers and interview req
   setupDom('admin');
   const data = { reviews: [{ receipt: 'LP-AAAA1111', answers: { explain: '<img src=x onerror="window.__pwned=1"> It locks the paper, so nobody can leak it early.', change: '</div><svg onload=window.__pwned=2>' } }],
     quick: [{ id: 'abcdef123456', scene: '2', clear: 'no', comment: 'keys unclear' }],
-    contact: [{ receipt: 'LP-BBBB2222', source: 'interview', c_contact: 'asha@example.com', c_name: 'Asha', c_slots: ['sat3-am', 'sat3-pm'], c_mode: 'meet', c_when: 'Thursday after 7', c_topic: 'I set papers' }, { receipt: 'LP-CCCC3333', source: 'review', c_contact: '98765', c_slots: ['sat3-am'], c_mode: 'phone' }] };
-  mountAdmin(async () => ({ ok: true, text: async () => '' }), async (url, headers) => (headers['x-admin-key'] === 'right-key-123' ? { ok: true, status: 200, data } : { ok: false, status: 401, data: null }));
+    contact: [{ receipt: 'LP-BBBB2222', source: 'interview', c_contact: 'asha@example.com', c_name: 'Asha', c_slots: ['sat3-am', 'sat3-pm'], c_mode: 'meet', c_when: 'Thursday after 7', c_topic: 'I set papers' }, { receipt: 'LP-CCCC3333', source: 'review', c_contact: '98765', c_slots: ['sat3-am'], c_mode: 'phone' },
+      // every review leaves a contact record with its email; one that asked for no call must not show up as an interview request
+      { receipt: 'LP-AAAA1111', source: 'review', email: 'asha@example.com' }, { receipt: 'LP-EEEE5555', source: 'review', email: 'ravi@example.com', c_link: 'https://example.com/r' }] };
+  const people = [
+    { receipt: 'LP-AAAA1111', receivedAt: '2026-10-02T10:00:00.000Z', email: 'asha@example.com', name: 'Asha', role: 'course_peer', minutes: 11, completedTasks: 4, swapLink: 'https://forms.gle/AshaStudy', slots: ['Sat 3 Oct, 10 am to 1 pm'], mode: 'Video call (Google Meet)', contact: '', when: '', timesSeen: 2 },
+    { receipt: 'LP-DDDD4444', receivedAt: '2026-10-02T11:00:00.000Z', email: 'asha@example.com', name: '', role: 'course_peer', minutes: 9, completedTasks: 3, swapLink: 'javascript:alert(1)', slots: [], mode: '', contact: '', when: '', timesSeen: 2 },
+    { receipt: 'LP-EEEE5555', receivedAt: '2026-10-02T12:00:00.000Z', email: 'ravi@example.com', name: '', role: 'faculty_ta', minutes: 14, completedTasks: 4, swapLink: '', slots: [], mode: '', contact: '', when: '', timesSeen: 1 }];
+  mountAdmin(async () => ({ ok: true, text: async () => '' }), async (url, headers) => (headers['x-admin-key'] !== 'right-key-123' ? { ok: false, status: 401, data: null } : url.includes('kind=participants') ? { ok: true, status: 200, data: { participants: people } } : { ok: true, status: 200, data }));
   document.querySelector('#admin-key').value = 'nope'; document.querySelector('#admin-form').dispatchEvent(new window.Event('submit', { cancelable: true })); await tick(10);
   assert.match(text(document.querySelector('#admin-msg')), /not right/);
   assert.equal(text(document.querySelector('#admin-out')), '');
   document.querySelector('#admin-key').value = 'right-key-123'; document.querySelector('#admin-form').dispatchEvent(new window.Event('submit', { cancelable: true })); await tick(10);
   const out = document.querySelector('#admin-out');
   assert.match(text(out), /1 reviews, 1 quick comments, 3 free-text answers/);
-  assert.match(text(out), /Interview requests \(2\)/);
+  assert.match(text(out), /Interview requests \(2\)/, 'only people who asked for a call are listed');
+  assert.ok(!/Reach: \(none\)/.test(text(out)), 'a reviewer with no call request is not an interview request');
   assert.match(text(out), /Sat 3 Oct, 10 am to 1 pm \(2\)/, 'slot popularity helps schedule');
   assert.match(text(out), /Sat 3 Oct, 2 pm to 5 pm \(1\)/);
   assert.match(text(out), /Reach: asha@example\.com · Asha/); assert.match(text(out), /Video call \(Google Meet\)/); assert.match(text(out), /Thursday after 7/);
+  assert.match(text(out), /Who gave reviews \(3\)/);
+  assert.match(text(out), /LP-AAAA1111.*SEEN 2 TIMES/); assert.match(text(out), /asha@example\.com · Asha/); assert.match(text(out), /classmate · 11 min · 4 of 4 tasks finished/);
+  assert.match(text(out), /ravi@example\.com/); assert.match(text(out), /faculty or TA/); assert.match(text(out), /No swap link given/);
+  assert.equal(out.querySelectorAll('a[href="https://forms.gle/AshaStudy"]').length, 1, 'a real https swap link is clickable');
+  assert.equal(out.querySelectorAll('a[href^="javascript:"]').length, 0, 'an unsafe link is shown as text, never as a link');
+  assert.ok(text(out).includes('javascript:alert(1)'));
+  assert.ok([...out.querySelectorAll('button')].some((b) => /Download participants CSV/.test(b.textContent)));
   assert.equal(out.querySelectorAll('img, script, svg').length, 0, 'injected markup is shown as text, not created');
   assert.ok(text(out).includes('<img src=x'));
   assert.equal(window.__pwned, undefined);
