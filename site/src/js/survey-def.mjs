@@ -20,6 +20,16 @@ const slowQ = (t) => ({ id: `${t}_slow`, type: 'single', showIf: { id: `${t}_stu
   options: [{ value: '1', label: 'A little: I noticed it but carried on' }, { value: '2', label: 'Some: it slowed me down' }, { value: '3', label: 'A lot: I nearly gave up' }, { value: '4', label: 'I could not complete the task' }] });
 const seqQ = (t) => ({ id: `${t}_seq`, type: 'scale', required: true, label: 'Overall, this task was…', scale: seq });
 
+// Interview availability. Edit these each week; times are IST. The values are stored, so keep them stable.
+export const SLOTS = [
+  { value: 'sat3-am', label: 'Sat 3 Oct, 10 am to 1 pm' }, { value: 'sat3-pm', label: 'Sat 3 Oct, 2 pm to 5 pm' }, { value: 'sat3-eve', label: 'Sat 3 Oct, 6 pm to 9 pm' },
+  { value: 'sun4-am', label: 'Sun 4 Oct, 10 am to 1 pm' }, { value: 'sun4-pm', label: 'Sun 4 Oct, 2 pm to 5 pm' },
+  { value: 'mon5-eve', label: 'Mon 5 Oct, 6 pm to 9 pm' }, { value: 'later', label: 'Later in the week (I will say when below)' },
+];
+export const MODES = [
+  { value: 'meet', label: 'Video call (Google Meet)' }, { value: 'phone', label: 'Phone call' }, { value: 'whatsapp', label: 'WhatsApp call' }, { value: 'campus', label: 'In person, on campus' },
+];
+
 export const SECTIONS = [
   {
     id: 'intro', title: 'Before you start', kind: 'intro',
@@ -135,17 +145,35 @@ export const SECTIONS = [
     ],
   },
   {
-    id: 'finish', title: 'Finishing up', kind: 'finish',
-    intro: 'Two optional things, then you get your participation receipt.',
+    id: 'finish', title: 'One last thing', kind: 'finish',
+    intro: 'A short chat helps us far more than any form. Two optional things, then you get your participation receipt.',
     questions: [
-      { id: 'followup', type: 'single', label: 'Would you do a 20 to 30 minute follow-up call?', options: [{ value: 'no', label: 'No, thank you' }, { value: 'yes', label: 'Yes' }] },
-      { id: 'c_contact', type: 'text', maxLen: 200, showIf: { id: 'followup', equals: 'yes' }, label: 'How can we reach you?', help: 'Kept separate from your answers and used only to arrange the call.' },
-      { id: 'c_name', type: 'text', maxLen: 120, label: 'Your name, if you want us to be able to confirm you took part.', help: 'Optional. Kept separate from your answers. Leave it empty to stay anonymous.' },
+      { id: 'followup', type: 'single', label: 'Would you be up for a short follow-up call (20 to 30 minutes)?', help: 'We will show you the prototypes, ask what you expected, and listen. No preparation needed.', options: [
+        { value: 'yes', label: 'Yes, let us find a time' }, { value: 'no', label: 'No, thank you' }] },
+      { id: 'c_slots', type: 'multi', showIf: { id: 'followup', equals: 'yes' }, requiredIf: { id: 'followup', equals: 'yes' }, label: 'When could you talk? Pick every slot that works.', help: 'All times are IST. We will confirm one by message.', options: SLOTS },
+      { id: 'c_when', type: 'text', maxLen: 200, showIf: { id: 'followup', equals: 'yes' }, label: 'Another time that suits you better? (optional)', help: 'For example: "Thursday after 7 pm".' },
+      { id: 'c_mode', type: 'single', showIf: { id: 'followup', equals: 'yes' }, requiredIf: { id: 'followup', equals: 'yes' }, label: 'How would you like to talk?', options: MODES },
+      { id: 'c_contact', type: 'text', maxLen: 200, showIf: { id: 'followup', equals: 'yes' }, requiredIf: { id: 'followup', equals: 'yes' }, minLen: 5, label: 'How can we reach you?', help: 'Email, phone or WhatsApp number. Kept apart from your answers and used only to arrange the call.' },
+      { id: 'c_name', type: 'text', maxLen: 120, label: 'Your name, if you want us to be able to confirm you took part.', help: 'Optional. Kept apart from your answers. Leave it empty to stay anonymous.' },
     ],
   },
 ];
 
-export const CONTACT_IDS = ['c_contact', 'c_name'];
+export const CONTACT_IDS = ['c_contact', 'c_name', 'c_slots', 'c_when', 'c_mode', 'c_topic'];
+
+/** The standalone "talk to us" form at /interview. */
+export const INTERVIEW = {
+  title: 'Talk to us',
+  questions: [
+    { id: 'consent', type: 'consent', required: true, label: 'I agree to be contacted about a short call, and I know I can say no at any time.' },
+    { id: 'c_slots', type: 'multi', required: true, label: 'When could you talk? Pick every slot that works.', help: 'All times are IST. We will confirm one by message.', options: SLOTS },
+    { id: 'c_when', type: 'text', maxLen: 200, label: 'Another time that suits you better? (optional)', help: 'For example: "Thursday after 7 pm".' },
+    { id: 'c_mode', type: 'single', required: true, label: 'How would you like to talk?', options: MODES },
+    { id: 'c_contact', type: 'text', maxLen: 200, required: true, minLen: 5, label: 'How can we reach you?', help: 'Email, phone or WhatsApp number. Used only to arrange the call.' },
+    { id: 'c_name', type: 'text', maxLen: 120, label: 'Your name (optional)', help: 'So we know who to expect.' },
+    { id: 'c_topic', type: 'text', voice: true, maxLen: 800, label: 'Anything you would like to talk about? (optional)', help: 'For example: you set exam papers, you run an exam centre, or you took one of the exams that leaked. Type or speak.' },
+  ],
+};
 export const TASK_IDS = ['t1', 't2', 't3', 't4'];
 export const QUICK_SCENES = ['1', '2', '3', '4', 'general'];
 
@@ -162,6 +190,13 @@ export function flatten(sections = SECTIONS) {
     }
   }
   return out;
+}
+
+/** Required always, or required because an earlier answer made it so (requiredIf). */
+export function requiredNow(q, answers) {
+  if (q.required) return true;
+  if (q.requiredIf) return answers[q.requiredIf.id] === q.requiredIf.equals;
+  return false;
 }
 
 export function visible(q, answers) {

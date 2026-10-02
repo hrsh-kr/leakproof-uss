@@ -1,22 +1,19 @@
-<!--title: Overview-->
-<!--desc: A prototype that makes a paper exam unreadable until it starts, and traceable if it leaks anyway.-->
+<!--title: Explore-->
+<!--desc: A paper nobody can read until the exam starts, and a way to trace it if it leaks anyway. Watch it, try it, tell us what you think.-->
+<!--js: home-->
 <header class="scene hero"><div class="wrap">
   <h1>Exam papers shouldn't leak.</h1>
   <p class="lede">A paper nobody can read until the exam starts. And if one leaks anyway, we know where.</p>
-  <div class="cta"><a class="btn" href="/how">Watch how it works</a><a class="btn ghost" href="/try">Try it yourself</a></div>
+  <div class="cta"><a class="btn" href="#watch">Start, it takes 60 seconds</a><a class="btn ghost" href="/review">Skip to the review</a></div>
+  <ol class="path" aria-label="The three steps">
+    <li><a href="#watch"><b>1</b> Watch</a></li>
+    <li><a href="#try"><b>2</b> Try</a></li>
+    <li><a href="/review"><b>3</b> Tell us</a></li>
+  </ol>
   <p class="fineprint">A course project prototype. Everything here is simulated.</p>
 </div></header>
 
-<section class="scene alt"><div class="wide">
-  <div style="text-align:center"><span class="eyebrow">Start here</span><h2 style="margin-top:6px">Three ways in</h2></div>
-  <div class="cards">
-    <a class="tile" href="/how"><span class="meta">2 minutes</span><h3>Watch</h3><p>An animated walk through the whole pipeline, from the person who writes a question to the investigator who traces a leak.</p></a>
-    <a class="tile" href="/try"><span class="meta">3 minutes</span><h3>Try</h3><p>Four small working demos. Lock a paper with split keys. Trace a leaked photo to a seat. Catch a quietly edited record.</p></a>
-    <a class="tile" href="/review"><span class="meta">12 to 15 minutes</span><h3>Review</h3><p>Help us test it. Four short tasks, then your verdict on our design choices. Type or speak. You get a participation receipt.</p></a>
-  </div>
-</div></section>
-
-<section class="scene" id="why"><div class="wrap">
+<section class="scene alt" id="why"><div class="wrap">
   <div class="big-num">22 lakh</div>
   <h2>students. One leak. Exam cancelled.</h2>
   <p class="lede">NEET-UG 2026 was cancelled nine days after the exam. It keeps happening.</p>
@@ -25,18 +22,29 @@
   </details>
 </div></section>
 
-<section class="scene alt"><div class="wide">
-  <div style="text-align:center"><span class="eyebrow">The idea</span><h2 style="margin-top:6px">Four ideas, one pipeline</h2></div>
-  <div class="cards">
-    <a class="tile" href="/try#s1"><span class="meta">1 · Many writers</span><h3>A few leaks don't leak the paper.</h3><p>Many setters write a few questions each. A program draws the paper at the last moment.</p></a>
-    <a class="tile" href="/try#s2"><span class="meta">2 · Sealed</span><h3>No one can open it alone.</h3><p>The paper is encrypted. The key is split into five pieces. It takes three.</p></a>
-    <a class="tile" href="/try#s3"><span class="meta">3 · Traceable</span><h3>Every copy is different.</h3><p>If a photo leaks, the order of questions points to a seat.</p></a>
-    <a class="tile" href="/try#s4"><span class="meta">4 · Verifiable</span><h3>Nothing changes quietly.</h3><p>Every action is logged in a way that shows if it is edited.</p></a>
-  </div>
+<section class="scene" id="watch"><div class="wrap">
+  <span class="eyebrow">1 · Watch</span>
+  <h2>One paper, eight steps.</h2>
+  <p class="lede">It plays by itself. Pause, or click a step, to read it.</p>
+  <div id="journey" style="width:100%"></div>
 </div></section>
 
-<section class="scene"><div class="wrap">
-  <h2>Reviewing this for the course?</h2>
-  <p class="lede">This site is the Phase I submission. Every deliverable has a place on it.</p>
-  <div class="cta"><a class="btn outline" href="/deliverables">See the deliverables checklist</a></div>
+<section class="scene alt" id="try"><div class="wrap">
+  <span class="eyebrow">2 · Try</span>
+  <h2>Four ideas. Try each one.</h2>
+  <p class="lede">Each works for real in your browser. Tap through them.</p>
+  <div id="try-root" style="width:100%"></div>
+  <details class="make" id="make"><summary>Make it yours: add your own question</summary>
+    <p>Type a question and four options. It formats itself and joins the demo paper, so you will see it sealed in scene 2 and traced in scene 3. Or pick an example to start.</p>
+    <div id="make-root" style="margin-top:12px"></div>
+    <p class="fineprint" id="make-note" role="status" aria-live="polite"></p>
+  </details>
+</div></section>
+
+<section class="scene" id="next"><div class="wrap">
+  <span class="eyebrow">3 · Tell us</span>
+  <h2>What would you change?</h2>
+  <p class="lede">Test it properly in 12 to 15 minutes and get a participation receipt. Or just talk to us.</p>
+  <div class="cta"><a class="btn" href="/review">Take the review</a><a class="btn outline" href="/interview">Book a 20-minute chat</a></div>
+  <p class="fineprint">Reviewing this for the course? See the <a href="/course#checklist">deliverables checklist</a>.</p>
 </div></section>

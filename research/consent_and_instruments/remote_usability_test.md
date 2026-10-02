@@ -1,6 +1,6 @@
 # Remote Usability Test (the Review page)
 
-Status: v1, live on the site at `/review`. Source of truth for every question: `site/src/js/survey-def.mjs` (the page and the server both read it). The table at the end is generated from that file.
+Status: v2, live on the site at `/review` (and `/interview` for people who only want a chat). Source of truth for every question: `site/src/js/survey-def.mjs` (the page and the server both read it). The table at the end is generated from that file.
 Supersedes `survey_after_prototype.md` (the earlier Tally plus voice plan).
 
 ## 1. Who we ask, and why them
@@ -40,7 +40,7 @@ From Lecture 3 and outside practice for unmoderated tests:
 | Overall impression | 2 min | Explain-it-back, 2-item usability score, trust and acceptance again, hardest task, what to change first | Lecture 1 satisfaction metric; RQ6 |
 | Optional: design choices | 2 min | Agree, unsure or disagree on five decisions, with why | Decision log D1 to D17; course style "justify choices" |
 | Optional: think like the operator | 2 min | Where a person running it might fail (Lecture 1 six questions), what is missing | Human in the loop (Lecture 1), RQ2 |
-| Finish | 0.5 min | Optional follow-up contact and name for credit; receipt | Participation credit |
+| Finish | 1 min | **Interview call-to-action:** yes or no; if yes, which time slots (IST), how to talk, and how to reach them; optional name for credit; then the receipt | Participation credit; interviews (studies B to E) |
 
 ## 5. What we measure, and how we judge it
 
@@ -88,29 +88,29 @@ Data minimisation (no name or email unless the person chooses); contact and name
 | Four short tasks | `t1_check` | single | yes | Five setters leak their questions. Which is closest to right? | Only the leaked questions that happen to be drawn onto the paper, usually a minority **(correct)** / All 25 of their questions are on the paper / The whole paper is exposed / It makes no difference / Not sure |
 | Four short tasks | `t1_seq` | scale | yes | Overall, this task was… | 1 Very difficult to 7 Very easy |
 | Four short tasks | `t1_stuck` | single | yes | Did you get stuck or confused at any point in this task? | No / Yes |
-| Four short tasks | `t1_incident` | text + voice | if t1_stuck = yes | Tell us about that moment. |  |
-| Four short tasks | `t1_slow` | single | if t1_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
+| Four short tasks | `t1_incident` | text + voice | shown if t1_stuck = yes | Tell us about that moment. |  |
+| Four short tasks | `t1_slow` | single | shown if t1_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
 | Four short tasks | `t2` | task | no | Task 2 of 4: The locked paper | Scene 2, 120s guide. The paper is locked. Its key is split among five key holders. Goal: Unlock the paper. Done when: You are done when the sample questions appear. |
 | Four short tasks | `t2_check` | single | yes | Two of the five key holders approve. What happens? | The paper stays locked **(correct)** / It opens slowly / It opens partly / Not sure |
 | Four short tasks | `t2_seq` | scale | yes | Overall, this task was… | 1 Very difficult to 7 Very easy |
 | Four short tasks | `t2_stuck` | single | yes | Did you get stuck or confused at any point in this task? | No / Yes |
-| Four short tasks | `t2_incident` | text + voice | if t2_stuck = yes | Tell us about that moment. |  |
-| Four short tasks | `t2_slow` | single | if t2_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
+| Four short tasks | `t2_incident` | text + voice | shown if t2_stuck = yes | Tell us about that moment. |  |
+| Four short tasks | `t2_slow` | single | shown if t2_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
 | Four short tasks | `t2_why` | text + voice | no | Why do you think the system needs several people instead of one? |  |
 | Four short tasks | `t3` | task | no | Task 3 of 4: A leaked photo | Scene 3, 120s guide. A photo of a page appears online. It shows only the top question. Goal: Find out which seats could be the source of that photo. Done when: You are done when you can say how many seats could match. (Choose "Top question only" in the prototype.) |
 | Four short tasks | `t3_check` | single | yes | A photo of one complete page leaks. What can the system tell? | Which seat it came from, or a short list of seats **(correct)** / The name of the person who posted it / Nothing / Not sure |
 | Four short tasks | `t3_seq` | scale | yes | Overall, this task was… | 1 Very difficult to 7 Very easy |
 | Four short tasks | `t3_stuck` | single | yes | Did you get stuck or confused at any point in this task? | No / Yes |
-| Four short tasks | `t3_incident` | text + voice | if t3_stuck = yes | Tell us about that moment. |  |
-| Four short tasks | `t3_slow` | single | if t3_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
+| Four short tasks | `t3_incident` | text + voice | shown if t3_stuck = yes | Tell us about that moment. |  |
+| Four short tasks | `t3_slow` | single | shown if t3_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
 | Four short tasks | `t3_fair` | scale | yes | Every candidate gets the same questions in a different order. How fair is that? | 1 Very unfair to 5 Very fair |
 | Four short tasks | `t3_worry` | multi | no | Which worries would you have about different orders? | Some orders might be harder / Answer keys could be wrong / It could make cheating look easier / It is confusing for invigilators / No worries |
 | Four short tasks | `t4` | task | no | Task 4 of 4: The activity log | Scene 4, 120s guide. Someone with access wants to change a record without being caught. Goal: Find out whether they can get away with it. Done when: You are done when you can explain what gives the change away. |
 | Four short tasks | `t4_check` | single | yes | Someone edits a record, then recomputes the log's fingerprints so it looks consistent. What still gives it away? | The last fingerprint no longer matches the one published earlier **(correct)** / The log refuses to save / Nothing; it cannot be detected / Not sure |
 | Four short tasks | `t4_seq` | scale | yes | Overall, this task was… | 1 Very difficult to 7 Very easy |
 | Four short tasks | `t4_stuck` | single | yes | Did you get stuck or confused at any point in this task? | No / Yes |
-| Four short tasks | `t4_incident` | text + voice | if t4_stuck = yes | Tell us about that moment. |  |
-| Four short tasks | `t4_slow` | single | if t4_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
+| Four short tasks | `t4_incident` | text + voice | shown if t4_stuck = yes | Tell us about that moment. |  |
+| Four short tasks | `t4_slow` | single | shown if t4_stuck = yes | How much did it get in your way? | A little: I noticed it but carried on / Some: it slowed me down / A lot: I nearly gave up / I could not complete the task |
 | Your overall impression | `explain` | text + voice | yes | In one or two sentences, explain to a friend what this system does. |  |
 | Your overall impression | `umux1` | scale | yes | The features would meet what I need from a secure exam system. | 1 Strongly disagree to 7 Strongly agree |
 | Your overall impression | `umux2` | scale | yes | The prototype is easy to use. | 1 Strongly disagree to 7 Strongly agree |
@@ -130,6 +130,18 @@ Data minimisation (no name or email unless the person chooses); contact and name
 | Our design choices: your verdict | `d_log_why` | text | no | Why? (optional, typed or spoken) |  |
 | Think like the person running it | `hitl` | multi | no | Where might things go wrong for that person? Pick up to two. | They might not realise they have to do it / They might not understand what the screen asks / They might not know how to do it / They might not be motivated to follow every step / They might not be able to (device, power, time) / They might skip steps under pressure |
 | Think like the person running it | `missing` | text + voice | no | What is missing? What would you add or remove? |  |
-| Finishing up | `followup` | single | no | Would you do a 20 to 30 minute follow-up call? | No, thank you / Yes |
-| Finishing up | `c_contact` | text | if followup = yes | How can we reach you? |  |
-| Finishing up | `c_name` | text | no | Your name, if you want us to be able to confirm you took part. |  |
+| One last thing | `followup` | single | no | Would you be up for a short follow-up call (20 to 30 minutes)? | Yes, let us find a time / No, thank you |
+| One last thing | `c_slots` | multi | if followup = yes | When could you talk? Pick every slot that works. | Sat 3 Oct, 10 am to 1 pm / Sat 3 Oct, 2 pm to 5 pm / Sat 3 Oct, 6 pm to 9 pm / Sun 4 Oct, 10 am to 1 pm / Sun 4 Oct, 2 pm to 5 pm / Mon 5 Oct, 6 pm to 9 pm / Later in the week (I will say when below) |
+| One last thing | `c_when` | text | shown if followup = yes | Another time that suits you better? (optional) |  |
+| One last thing | `c_mode` | single | if followup = yes | How would you like to talk? | Video call (Google Meet) / Phone call / WhatsApp call / In person, on campus |
+| One last thing | `c_contact` | text | if followup = yes | How can we reach you? |  |
+| One last thing | `c_name` | text | no | Your name, if you want us to be able to confirm you took part. |  |
+
+
+## 9. Booking an interview (the call-to-action)
+
+Two ways in, both stored apart from answers and visible only in `/admin`:
+1. **At the end of the review:** "Would you be up for a short follow-up call (20 to 30 minutes)?" If yes, the form asks which slots work (several allowed), how they would like to talk (video, phone, WhatsApp, in person), and how to reach them. These three are required once someone says yes.
+2. **`/interview`:** a short form for anyone who wants a chat without taking the full review: consent, slots, mode, contact, and an optional note (typed or spoken) about what they would like to talk about.
+
+Slots and modes live in `site/src/js/survey-def.mjs` (`SLOTS`, `MODES`). **Edit the slots each week**; the stored values must stay stable. `/admin` shows how many people offered each slot, to help pick times that suit most.

@@ -109,7 +109,7 @@ test('the same clientId returns the same receipt and is stored once', async () =
 });
 
 test('contact details are stored separately and never in reviews, stats or the default export', async () => {
-  const b = validReview({ followup: 'yes', c_contact: 'secret-person@example.com', c_name: 'Secret Person' });
+  const b = validReview({ followup: 'yes', c_contact: 'secret-person@example.com', c_name: 'Secret Person', c_slots: ['sat3-am', 'sun4-pm'], c_mode: 'phone', c_when: 'Thursday after 7 pm' });
   const r = await post(b);
   assert.equal(r.statusCode, 200);
   const reviews = await new FileStore(dir).list('review');
@@ -253,4 +253,66 @@ test('storage failures return a generic error, not internals', async () => {
 test('responses are never cached by shared caches on the export route', async () => {
   const r = await adminGet();
   assert.equal(r.headers['Cache-Control'], 'no-store');
+});
+
+test('follow-up call: choosing yes requires slots, a mode and a way to reach the person', async () => {
+  const base = { followup: 'yes', c_contact: 'person@example.com', c_slots: ['sat3-am'], c_mode: 'meet' };
+  assert.equal((await post(validReview(base))).statusCode, 200);
+  for (const missing of ['c_contact', 'c_slots', 'c_mode']) {
+    const a = { ...base }; delete a[missing];
+    const r = await post(validReview(a));
+    assert.equal(r.statusCode, 400, missing);
+    assert.ok(r.body.errors.some((e) => e.includes(missing)), missing);
+  }
+  assert.equal((await post(validReview({ ...base, c_slots: [] }))).statusCode, 400);
+  assert.equal((await post(validReview({ ...base, c_slots: ['not-a-slot'] }))).statusCode, 400);
+  assert.equal((await post(validReview({ ...base, c_mode: 'carrier-pigeon' }))).statusCode, 400);
+  assert.equal((await post(validReview({ ...base, c_contact: 'abc' }))).statusCode, 400, 'too short to be a contact');
+  // saying no must not smuggle contact fields in
+  assert.equal((await post(validReview({ followup: 'no', c_slots: ['sat3-am'] }))).statusCode, 400);
+  assert.equal((await post(validReview({ followup: 'no' }))).statusCode, 200);
+});
+
+const interview = (over = {}) => ({ kind: 'interview', clientId: cid(), answers: { consent: true, c_slots: ['sat3-pm', 'sun4-am'], c_mode: 'whatsapp', c_contact: '+91 98765 43210', c_name: 'Ravi', c_topic: 'I set papers for a state board.', ...over } });
+
+test('interview request: stored apart from answers, with the chosen times, and visible only to the admin', async () => {
+  freshEnv();
+  const r = await post(interview());
+  assert.equal(r.statusCode, 200);
+  assert.match(r.body.receipt, /^LP-/);
+  assert.equal((await new FileStore(process.env.LEAKPROOF_DATA_DIR).list('review')).length, 0, 'not a review');
+  const contacts = await new FileStore(process.env.LEAKPROOF_DATA_DIR).list('contact');
+  assert.equal(contacts.length, 1);
+  assert.equal(contacts[0].source, 'interview');
+  assert.deepEqual(contacts[0].c_slots, ['sat3-pm', 'sun4-am']);
+  assert.equal(contacts[0].c_mode, 'whatsapp');
+  assert.ok(!('consent' in contacts[0]));
+  assert.equal(JSON.stringify((await call(stats, {})).body).includes('98765'), false);
+  assert.equal(JSON.stringify((await adminGet()).body).includes('98765'), false, 'default export has no contacts');
+  assert.ok(JSON.stringify((await adminGet({ include: 'contact' })).body).includes('98765'));
+  assert.equal((await call(exportApi, { method: 'GET', query: { include: 'contact' } })).statusCode, 401);
+});
+
+test('interview request: required fields, valid choices, no extras, one per person', async () => {
+  for (const missing of ['consent', 'c_slots', 'c_mode', 'c_contact']) {
+    const b = interview(); delete b.answers[missing];
+    assert.equal((await post(b)).statusCode, 400, missing);
+  }
+  assert.equal((await post(interview({ consent: false }))).statusCode, 400);
+  assert.equal((await post(interview({ c_slots: [] }))).statusCode, 400);
+  assert.equal((await post(interview({ c_slots: ['yesterday'] }))).statusCode, 400);
+  assert.equal((await post(interview({ c_mode: 'x' }))).statusCode, 400);
+  assert.equal((await post(interview({ c_contact: 'a' }))).statusCode, 400);
+  assert.equal((await post(interview({ c_topic: 'x'.repeat(801) }))).statusCode, 400);
+  assert.equal((await post(interview({ role: 'faculty_ta' }))).statusCode, 400, 'review answers are not accepted here');
+  const extra = interview(); extra.metrics = {};
+  assert.equal((await post(extra)).statusCode, 400);
+  const b = interview();
+  const r1 = await post(b), r2 = await post(b);
+  assert.equal(r1.body.receipt, r2.body.receipt);
+  assert.equal(r2.body.duplicate, true);
+  const hp = interview(); hp.website = 'spam';
+  const before = (await new FileStore(process.env.LEAKPROOF_DATA_DIR).list('contact')).length;
+  assert.equal((await post(hp)).statusCode, 200);
+  assert.equal((await new FileStore(process.env.LEAKPROOF_DATA_DIR).list('contact')).length, before);
 });

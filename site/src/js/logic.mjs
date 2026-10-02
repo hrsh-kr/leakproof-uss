@@ -209,6 +209,17 @@ const LP = (function () {
     }
     return matches;
   }
+
+  /* Answer key for one printed copy: which letter is correct on THIS copy, given its shuffled options. */
+  function answerKeyFor(copy, questions) {
+    return copy.order.map(function (qi, pos) {
+      const q = questions[qi];
+      if (q.correct === null || q.correct === undefined) return null;
+      const letterIndex = copy.optionOrders[pos].indexOf(q.correct);
+      return 'abcd'.charAt(letterIndex);
+    });
+  }
+
   function checkDigit(seat) {
     // Weighted sum of the three digits. Weights 3, 7, 1 share no factor with 10, so changing
     // any single digit always changes the result.
@@ -283,7 +294,7 @@ const LP = (function () {
     xmur3, mulberry32, rngFrom, shuffle,
     SUBJECTS, QUOTAS, buildPool, drawPaper, exposure, expectedExposure, simulateDraws,
     P, makeShares, combine, secretToHex, deriveKey, seal, open, toHex, releaseCheck,
-    copyFor, visibleFingerprint, traceSeats, checkDigit, copyId, verifyCopyId,
+    copyFor, visibleFingerprint, traceSeats, answerKeyFor, checkDigit, copyId, verifyCopyId,
     GENESIS, sha256hex, buildChain, verifyChain, rewriteFrom, headOf,
     tokens, similarity, matchLeak,
   };

@@ -20,27 +20,27 @@ Every item has a home on the website. "Evidence" says what must exist before we 
 
 | # | Deliverable | Required by | Where on the site | Evidence needed |
 | --- | --- | --- | --- | --- |
-| D1 | **Project details** (problem, users, scope, why) | A1 precedent, Lecture 1 part 1 | Overview, Deliverables | Done (problem statement) |
-| D2 | **Workflow / protocol flowchart** (animated pipeline; step-by-step task flow for each role) | A1 precedent, brief "Workflows" | How it works | Done (built) |
-| D3 | **Low-fidelity prototype** (storyboards, screens per role) | Brief "Design Prototypes", Lecture 3 | Prototypes | Done (built); paper pack for think-aloud still to add |
-| D4 | **Interactive prototype** (working demo of the four ideas) | Brief, Lecture 3 (medium fidelity) | Try it | Done (built, tested) |
-| D5 | **Study design** (goals, participants, consent, tasks with scenario, goal, end criterion and time limit, data collected, pilot) | Lecture 3, Lecture 2 | Research, Review (the study itself) | Done once survey is piloted |
-| D6 | **Primary research data and results**: remote usability test with classmates (tasks, time, ratings, comments), interviews, contextual walk-through | Brief, A1 | Review (collects), Research (aggregates) | Needs responses |
-| D7 | **Secondary research**: incident analysis, comparative analysis, literature | Brief, A1 | Research | Built; needs one review pass |
-| D8 | **Critical incidents** (user goal, intention, what happened, possible cause, severity 0 to 4) consolidated | Lecture 3 | Research | Collected by the Review; consolidated after responses |
-| D9 | **Mental-model findings** | Lecture 4 | Research | From the Review's baseline questions |
-| D10 | **Insights and design themes** (SWOT or insight board, what changed because of studies) | A1, brief Poster 1 and video Part A | Research | Draft now; finalise after data |
-| D11 | **Requirements**: usability, security, privacy, functional, each with evidence and a test | Brief | Requirements | Seeded; evidence added after studies |
-| D12 | **Threat model, assumptions, limits** | Brief ("security requirements"), Lecture 2 | Requirements | v0 done |
-| D13 | **Decision log** (what we chose, options, pros and cons) | Course style: no fixed answers | Requirements | Done |
-| D14 | **Limitations** (proxy participants, sample, simulated data) | Rigour | Research, Deliverables | Done |
-| D15 | **Participation evidence for classmates** (1% per five studies) | Brief (evaluation) | Review (receipt) | Built; confirm with TA how credit is verified |
+| D1 | **Project details** (problem, users, scope, why) | A1 precedent, Lecture 1 part 1 | Explore (home), Course material > Checklist | Done (problem statement) |
+| D2 | **Workflow / protocol flowchart** (animated pipeline; step-by-step task flow for each role) | A1 precedent, brief "Workflows" | Explore > Watch; Course material > Prototypes (task flows) | Done (built) |
+| D3 | **Low-fidelity prototype** (storyboards, screens per role) | Brief "Design Prototypes", Lecture 3 | Course material > Prototypes | Done (built); paper pack for think-aloud still to add |
+| D4 | **Interactive prototype** (working demo of the four ideas) | Brief, Lecture 3 (medium fidelity) | Explore > Try | Done (built, tested) |
+| D5 | **Study design** (goals, participants, consent, tasks with scenario, goal, end criterion and time limit, data collected, pilot) | Lecture 3, Lecture 2 | Course material > Research; Review (the study itself) | Done once survey is piloted |
+| D6 | **Primary research data and results**: remote usability test with classmates (tasks, time, ratings, comments), interviews, contextual walk-through | Brief, A1 | Review (collects), Course material > Research (aggregates) | Needs responses |
+| D7 | **Secondary research**: incident analysis, comparative analysis, literature | Brief, A1 | Course material > Research | Built; needs one review pass |
+| D8 | **Critical incidents** (user goal, intention, what happened, possible cause, severity 0 to 4) consolidated | Lecture 3 | Course material > Research | Collected by the Review; consolidated after responses |
+| D9 | **Mental-model findings** | Lecture 4 | Course material > Research | From the Review's baseline questions |
+| D10 | **Insights and design themes** (SWOT or insight board, what changed because of studies) | A1, brief Poster 1 and video Part A | Course material > Research | Draft now; finalise after data |
+| D11 | **Requirements**: usability, security, privacy, functional, each with evidence and a test | Brief | Course material > Requirements | Seeded; evidence added after studies |
+| D12 | **Threat model, assumptions, limits** | Brief ("security requirements"), Lecture 2 | Course material > Requirements | v0 done |
+| D13 | **Decision log** (what we chose, options, pros and cons) | Course style: no fixed answers | Course material > Requirements | Done |
+| D14 | **Limitations** (proxy participants, sample, simulated data) | Rigour | Course material > Research and Checklist | Done |
+| D15 | **Participation evidence for classmates** (1% per five studies) | Brief (evaluation) | Review (receipt); Interview (chat requests) | Built; confirm with TA how credit is verified |
 
 Poster (Oct 6, session Oct 7) reuses D2, D4, D6, D10 (design themes) and D11.
 
 ## 3. What this changes from the earlier plan
 
-1. The **website is the submission**, with a PDF export of key pages as backup. A reviewer can see every deliverable in one place.
+1. The **website is the submission**, with a PDF export of key pages as backup. It has one simple path for newcomers (Watch, Try, Tell us) and a single "Course material" page, with four tabs, for reviewers.
 2. The **survey becomes a remote usability test** run on classmates: scenario tasks with end criteria and time on task measured automatically, post-task ratings, critical-incident prompts and open questions that accept voice or typing. This matches Lecture 3 and outside practice for unmoderated tests.
 3. Classmates are told **what they get** (a participation receipt that counts toward the 1% per five studies) and **what we ask of them** (about 12 minutes), with consent in plain words.
 4. Severity ratings (0 to 4) are added to critical incidents (outside practice).

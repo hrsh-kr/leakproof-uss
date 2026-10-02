@@ -346,3 +346,47 @@ textarea:focus, .rv-input:focus { outline: 3px solid var(--accent); outline-offs
 .resp b { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 @media (max-width: 600px) { .bar-row { grid-template-columns: 90px 1fr 3rem; } .receipt dl { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: no-preference) { .scene .wrap, .scene .wide { animation: rise 0.5s ease both; } @keyframes rise { from { opacity: 0.001; transform: translateY(10px); } to { opacity: 1; transform: none; } } .hero .wrap { animation: none; } }
+
+/* ---- v3: simpler path, course tabs, question form ---- */
+.scene.compact { padding-block: clamp(36px, 7vw, 64px) clamp(16px, 3vw, 28px); }
+.path { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; list-style: none; margin: 6px 0 0; padding: 0; }
+.path a { display: inline-flex; gap: 8px; align-items: center; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--alt); color: var(--ink); font-size: 0.95rem; }
+.path a:hover { text-decoration: none; background: var(--line); }
+.path b { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 0.8rem; }
+.scene.alt .path a { background: var(--card); }
+.scene-panel { width: 100%; display: grid; gap: 16px; justify-items: center; }
+.scene-head { display: grid; gap: 8px; justify-items: center; text-align: center; }
+.scene-title { font-size: clamp(1.5rem, 4vw, 2.1rem); }
+details.make { max-width: 640px; margin-top: 8px; }
+details.make > summary { font-weight: 500; }
+.ctabs { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 49px); z-index: 15; background: var(--bar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); }
+.ctabs-in { max-width: 1100px; margin: 0 auto; padding: 8px 16px; display: flex; justify-content: center; }
+.tabpanel[hidden] { display: none; }
+.tabpanel > .scene:first-child { padding-top: clamp(32px, 6vw, 56px); }
+
+/* question form */
+.qf { display: grid; gap: 10px; text-align: left; width: 100%; }
+.qf-presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.9rem; }
+.chip-btn { font: inherit; font-size: 0.85rem; min-height: 32px; padding: 3px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.chip-btn:hover { border-color: var(--accent); color: var(--accent); }
+.qf-label, .qf-opts-head { font-weight: 600; font-size: 0.95rem; }
+.qf-opts-head { display: flex; justify-content: space-between; align-items: baseline; }
+.qf-opts-head .muted { font-weight: 400; font-size: 0.82rem; }
+.qf-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.qf-letter { width: 28px; height: 28px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; }
+.qf-correct { display: inline-flex; gap: 6px; align-items: center; font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.qf-correct input { accent-color: var(--good); width: 16px; height: 16px; }
+.qf textarea.qf-q { min-height: 64px; }
+.qf-preview { background: var(--card); border: 1px dashed var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 6px; }
+.scene:not(.alt) .qf-preview, .screen .qf-preview { background: var(--bg); }
+.qf-tag { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.qf-q-out { font-weight: 600; }
+.qf-opts { margin: 0; padding-left: 1.4rem; display: grid; gap: 2px; font-size: 0.95rem; }
+.qf-opts li.ok { color: var(--good); font-weight: 600; }
+.qf-opts .badge { margin-left: 8px; }
+.qf-list { margin: 0; padding-left: 1.2rem; display: grid; gap: 8px; font-size: 0.92rem; }
+.screen .qf .rv-input { background: var(--card); }
+.qf .rv-err:empty { display: none; }
+@media (max-width: 520px) { .qf-row { grid-template-columns: 24px minmax(0, 1fr) auto; } .qf-correct span { display: none; } .hide-sm { display: none; } .ctabs .tabs { width: 100%; flex-wrap: nowrap; } .ctabs .tabs button { flex: 1 1 auto; padding: 5px 6px; font-size: 0.8rem; white-space: nowrap; } }
+#try-root { display: grid; gap: 22px; justify-items: center; }
+.scene-panel { margin-top: 4px; }

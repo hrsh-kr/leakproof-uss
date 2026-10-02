@@ -1,5 +1,5 @@
 // Animated pipeline flowchart and role task flows.
-import { h, svg, fill, $ } from './dom.js';
+import { h, svg, fill } from './dom.js';
 
 export const STEPS = [
   { short: 'Write', sub: 'setters', who: 'Setters', title: 'Many people write the questions',
@@ -153,5 +153,3 @@ export function mountTaskFlows(root) {
   fill(root, [tabs, body]); show('centre');
 }
 
-const jr = $('#journey'); if (jr) mountJourney(jr);
-const tf = $('#taskflows'); if (tf) mountTaskFlows(tf);

@@ -1,11 +1,3 @@
-<!--title: Prototypes-->
-<!--desc: Clickable screens for each role, a storyboard, and what each design choice is testing.-->
-<!--js: protos-->
-<header class="scene hero"><div class="wrap">
-  <h1>Prototypes.</h1>
-  <p class="lede">A clickable screen for each person who touches the paper. Try to break them.</p>
-</div></header>
-
 <section class="scene alt"><div class="wide">
   <div style="text-align:center"><span class="eyebrow">Mid-fidelity, clickable</span><h2 style="margin-top:6px">Pick a role</h2>
   <p class="lede" style="margin:10px auto 0">Each screen works, with simulated data. The notes say what we want you to challenge.</p></div>
@@ -17,16 +9,21 @@
   <div id="storyboard"></div>
 </div></section>
 
-<section class="scene alt left"><div class="wrap">
+<section class="scene alt" id="flows"><div class="wide">
+  <div style="text-align:center"><span class="eyebrow">Who does what</span><h2 style="margin-top:6px">The steps each person follows</h2>
+  <p class="lede" style="margin:10px auto 0">The workflow for each role. Dashed boxes are decisions. Red boxes are what happens when something is missing.</p></div>
+  <div id="taskflows" style="display:grid;gap:14px;justify-items:center"></div>
+</div></section>
+<section class="scene alt left" id="fidelity"><div class="wrap">
   <span class="eyebrow">How we chose the fidelity</span>
   <h2>Deeper where it is riskiest.</h2>
   <div class="prose">
     <p>Following Lecture 3, we keep early screens simple (horizontal: every role has a screen, with little depth) and go deeper (vertical) on the riskiest flow, the centre print ceremony, because that is where a tired person, a clock and a refusal meet.</p>
     <ul>
-      <li><strong>Low fidelity:</strong> the storyboard above and the role task flows on <a href="/how">How it works</a>.</li>
+      <li><strong>Low fidelity:</strong> the storyboard above and the role task flows on <a href="/#watch">How it works</a>.</li>
       <li><strong>Medium fidelity:</strong> the clickable screens above (simulated data, real logic for the print checks and the leak match).</li>
-      <li><strong>Working prototypes:</strong> the four demos on <a href="/try">Try it</a> use real encryption, real key splitting and a real hash chain.</li>
+      <li><strong>Working prototypes:</strong> the four demos on <a href="/#try">Try it</a> use real encryption, real key splitting and a real hash chain.</li>
     </ul>
-    <p>Everything here is tested with classmates in the <a href="/review">review</a>, and the results are on the <a href="/research">Research page</a>.</p>
+    <p>Everything here is tested with classmates in the <a href="/review">review</a>, and the results are on the <a href="/course#research">Research page</a>.</p>
   </div>
 </div></section>

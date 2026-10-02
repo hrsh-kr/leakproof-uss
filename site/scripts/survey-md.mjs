@@ -11,7 +11,7 @@ for (const sec of SECTIONS) {
   for (const q of qs) {
     const opts = q.options ? q.options.map((o) => o.label + (o.correct ? ' **(correct)**' : '')).join(' / ') : q.scale ? `${q.scale.min} ${q.scale.minLabel} to ${q.scale.max} ${q.scale.maxLabel}` : q.type === 'task' ? `Scene ${q.scene}, ${q.limitSec}s guide. ${q.scenario} Goal: ${q.goal} Done when: ${q.end}` : '';
     const label = (q.label || q.title || '').replace(/\|/g, '/');
-    rows.push(`| ${sec.title} | \`${q.id}\` | ${q.type}${q.voice ? ' + voice' : ''} | ${q.required ? 'yes' : q.showIf ? 'if ' + q.showIf.id + ' = ' + q.showIf.equals : 'no'} | ${label} | ${opts.replace(/\|/g, '/')} |`);
+    rows.push(`| ${sec.title} | \`${q.id}\` | ${q.type}${q.voice ? ' + voice' : ''} | ${q.required ? 'yes' : q.requiredIf ? 'if ' + q.requiredIf.id + ' = ' + q.requiredIf.equals : q.showIf ? 'shown if ' + q.showIf.id + ' = ' + q.showIf.equals : 'no'} | ${label} | ${opts.replace(/\|/g, '/')} |`);
   }
 }
 console.log('| Section | Id | Type | Required | Question | Options or scale |\n| --- | --- | --- | --- | --- | --- |\n' + rows.join('\n'));

@@ -2,16 +2,14 @@
 // hooks.onAction() is called on every user interaction (used to count actions in the usability test).
 import LP from './logic.mjs';
 import { h, fill, svg, cryptoOk } from './dom.js';
+import { SAMPLES, demoPaper } from './paper.js';
 
 export const EXAM_SECRET = 'leakproof-demo-exam-2026';   // must match tests/logic.test.mjs
-
-export const QUESTIONS = [
-  { text: 'Which unit measures electric current?', options: ['volt', 'ampere', 'ohm', 'watt'] },
-  { text: 'What is the chemical symbol for sodium?', options: ['Na', 'K', 'S', 'Sn'] },
-  { text: 'Which part of a cell makes most of its energy?', options: ['Mitochondria', 'Ribosome', 'Nucleus', 'Golgi body'] },
-  { text: 'What is 15% of 200?', options: ['15', '20', '30', '45'] },
-];
+export const QUESTIONS = SAMPLES;                          // the fixed paper used in the usability test
 const LETTERS = ['a', 'b', 'c', 'd'];
+// Scenes 2 and 3 show whatever is on the demo paper (samples, or questions the visitor added).
+// The usability test passes hooks.paper = SAMPLES so every participant sees the same thing.
+const paperFor = (hooks) => (hooks && hooks.paper) || demoPaper().get();
 const noop = () => {};
 
 /* ---------- Scene 1: many writers, late draw ---------- */
@@ -59,7 +57,8 @@ export function mountScene2(root, hooks = {}) {
   fill(root, [h('div', { class: 'card' }, vault, keysBox, verdict)]);
   if (!cryptoOk()) { pre.textContent = 'This browser blocks encryption on this page. Open it in a current Chrome, Safari or Firefox over https.'; return {}; }
 
-  const paperText = 'SAMPLE PAPER\n' + QUESTIONS.map((q, i) => `${i + 1}. ${q.text}`).join('\n');
+  const qs = paperFor(hooks);
+  const paperText = 'SAMPLE PAPER\n' + qs.map((q, i) => `${i + 1}. ${q.text}\n   ` + q.options.map((o, j) => `${LETTERS[j]}) ${o}`).join('  ')).join('\n');
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(15));
   let secret = 0n; for (const b of bytes) secret = (secret << 8n) | BigInt(b);
   const shares = LP.makeShares(secret, K, N);
@@ -107,8 +106,10 @@ export function mountScene2(root, hooks = {}) {
 /* ---------- Scene 3: every copy is different ---------- */
 export function mountScene3(root, hooks = {}) {
   const act = hooks.onAction || noop;
+  const qs = paperFor(hooks);
   let seat = 14, topOnly = false;
   const photo = h('ol');
+  const keyLine = h('p', { class: 'sub mono', 'aria-live': 'polite' });
   const dots = h('div', { class: 'dots', role: 'img', 'aria-label': '200 seats. Blue seats could have produced the photo.' });
   fill(dots, Array.from({ length: 200 }, () => h('div', { class: 'dot' })));
   const verdict = h('p', { class: 'verdict', role: 'status', 'aria-live': 'polite' });
@@ -117,6 +118,7 @@ export function mountScene3(root, hooks = {}) {
   const another = h('button', { class: 'link-btn', type: 'button', onclick: () => { act('newphoto'); seat = 1 + Math.floor(Math.random() * 200); render(); } }, 'Try another photo');
   fill(root, [h('div', { class: 'card' },
     h('div', { class: 'photo', 'aria-label': 'A photo of a leaked page' }, photo),
+    keyLine,
     h('div', { class: 'seg', role: 'group', 'aria-label': 'How much of the page is in the photo' }, bWhole, bTop),
     dots, verdict, another)]);
   let lastMatches = 0;
@@ -124,10 +126,12 @@ export function mountScene3(root, hooks = {}) {
     const copy = LP.copyFor(EXAM_SECRET, seat);
     const visible = topOnly ? 1 : 4;
     fill(photo, copy.order.map((qi, pos) => {
-      const q = QUESTIONS[qi];
+      const q = qs[qi];
       return h('li', { class: pos >= visible ? 'hide' : '' }, q.text,
         h('div', { class: 'opts' }, copy.optionOrders[pos].map((oj, k) => h('span', null, LETTERS[k] + ') ' + q.options[oj]))));
     }));
+    const key = LP.answerKeyFor(copy, qs);
+    keyLine.textContent = key.every((k) => k) ? 'Answer key for this copy: ' + key.map((k, i) => `${i + 1}${k}`).join('  ') + '  (it differs on every copy)' : '';
     const matches = new Set(LP.traceSeats(EXAM_SECRET, 200, LP.visibleFingerprint(copy, visible), visible));
     lastMatches = matches.size;
     Array.from(dots.children).forEach((d, i) => d.classList.toggle('hit', matches.has(i + 1)));

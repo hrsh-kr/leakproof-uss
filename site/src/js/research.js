@@ -1,15 +1,14 @@
 // Fills the live results section from /api/stats (aggregates only; small groups are hidden).
-import { getJson } from './api.js';
+import { getJson as defaultGetJson } from './api.js';
 import { h, fill, $ } from './dom.js';
 
-const root = $('#stats-root');
 const names = { t1: 'Task 1: A few leaks', t2: 'Task 2: The locked paper', t3: 'Task 3: A leaked photo', t4: 'Task 4: The activity log' };
 const leakLabels = { written: 'While questions are written', press: 'At the printing press', transport: 'During transport', storage: 'In storage at the centre', hall: 'Inside the exam hall', after: 'After the exam', dontknow: 'I do not know' };
 const dash = '—';
 const fmt = (v, d = 1) => (v == null ? dash : Number(v).toFixed(d));
 
 function stat(n, l) { return h('div', { class: 'stat' }, h('div', { class: 'n' }, n), h('div', { class: 'l' }, l)); }
-function bars(title, map, labels, total) {
+function bars(title, map, labels) {
   const keys = Object.keys(map).filter((k) => map[k] != null);
   if (!keys.length) return h('p', { class: 'muted' }, `${title}: shown when 5 or more people have answered.`);
   const max = Math.max(1, ...keys.map((k) => map[k]));
@@ -17,9 +16,9 @@ function bars(title, map, labels, total) {
     h('div', { class: 'bar-row' }, h('span', null, labels[k] || k), h('div', { class: 'track' }, h('i', { style: `width:${Math.round((map[k] / max) * 100)}%` })), h('span', { class: 'v' }, String(map[k])))));
 }
 
-(async function load() {
+export async function mountStats(root, getJson = defaultGetJson) {
   const r = await getJson('/api/stats');
-  if (!r.ok) { fill(root, [h('div', { class: 'callout warn' }, r.status === 503 ? 'Live results are not connected on this copy of the site yet.' : 'Could not load results right now.')]); return; }
+  if (!r.ok) { fill(root, [h('div', { class: 'callout warn' }, r.status === 503 ? 'Live results are not connected on this copy of the site yet.' : 'Could not load results right now.')]); return null; }
   const s = r.data;
   const badge = $('#plan-a'); if (badge) badge.textContent = `Live: ${s.n.review} so far`;
   const parts = [];
@@ -33,4 +32,7 @@ function bars(title, map, labels, total) {
   parts.push(bars('Where people think leaks are most likely (pick up to two)', s.leakwhere, leakLabels));
   parts.push(h('p', { class: 'fineprint' }, 'Target: at least 70% answer each comprehension question correctly. A task below that is redesigned, and the change is recorded in the decision log.'));
   fill(root, parts);
-})();
+  return s;
+}
+
+if (typeof document !== 'undefined' && !globalThis.__LP_TEST) { const root = $('#stats-root'); if (root) mountStats(root); }

@@ -7,15 +7,65 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Permissions-Policy", "value": "microphone=(self), camera=(), geolocation=()" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "microphone=(self), camera=(), geolocation=()"
+        }
       ]
     },
     {
       "source": "/api/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    }
+  ],
+  "installCommand": "npm install --omit=dev",
+  "redirects": [
+    {
+      "source": "/how",
+      "destination": "/#watch",
+      "permanent": false
+    },
+    {
+      "source": "/try",
+      "destination": "/#try",
+      "permanent": false
+    },
+    {
+      "source": "/prototypes",
+      "destination": "/course#prototypes",
+      "permanent": false
+    },
+    {
+      "source": "/research",
+      "destination": "/course#research",
+      "permanent": false
+    },
+    {
+      "source": "/requirements",
+      "destination": "/course#requirements",
+      "permanent": false
+    },
+    {
+      "source": "/deliverables",
+      "destination": "/course#checklist",
+      "permanent": false
     }
   ]
 }

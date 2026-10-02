@@ -23,12 +23,8 @@ function syncDocs() {
 }
 
 const NAV = [
-  ['index', '/', 'Overview'],
-  ['how', '/how', 'How it works'],
-  ['try', '/try', 'Try it'],
-  ['prototypes', '/prototypes', 'Prototypes'],
-  ['research', '/research', 'Research'],
-  ['requirements', '/requirements', 'Requirements'],
+  ['index', '/', 'Explore'],
+  ['course', '/course', 'Course material'],
 ];
 
 function copyDir(from, to) {
@@ -55,18 +51,24 @@ export function build() {
     let raw = fs.readFileSync(path.join(SRC, 'pages', file), 'utf8');
     const meta = {};
     raw = raw.replace(/^<!--\s*(\w+):\s*([\s\S]*?)-->\s*/gm, (_, k, v) => { meta[k] = v.trim(); return ''; });
+    raw = raw.replace(/\{\{inc:([\w-]+)\}\}/g, (_, name) => {
+      const f = path.join(SRC, 'partials', name + '.html');
+      if (!fs.existsSync(f)) throw new Error(`missing partial ${name} in ${file}`);
+      return fs.readFileSync(f, 'utf8');
+    });
     raw = raw.replace(/\{\{gen:(\w+)\}\}/g, (_, name) => {
       if (!gens[name]) throw new Error(`unknown generator ${name} in ${file}`);
       return gens[name]();
     });
-    const nav = NAV.map(([s, href, label]) => `<a href="${href}"${s === slug ? ' aria-current="page"' : ''}>${esc(label)}</a>`).join('');
+    const navLabel = (label) => (label === 'Course material' ? 'Course<span class="hide-sm"> material</span>' : esc(label));
+    const nav = NAV.map(([s, href, label]) => `<a href="${href}"${s === slug ? ' aria-current="page"' : ''}>${navLabel(label)}</a>`).join('');
     const scripts = (meta.js || '').split(',').map((s) => s.trim()).filter(Boolean)
       .map((s) => `<script type="module" src="/js/${s}.js"></script>`).join('\n');
     const html = layout
       .replace('{{title}}', esc(meta.title || 'LeakProof'))
       .replace('{{desc}}', esc(meta.desc || 'A leak-resistant paper exam system, prototyped for a usable security course.'))
       .replace('{{nav}}', nav)
-      .replace('{{review_current}}', slug === 'review' ? ' aria-current="page"' : '')
+      .replace('{{review_current}}', ['review', 'interview'].includes(slug) ? ' aria-current="page"' : '')
       .replace('{{bodyclass}}', esc(meta.bodyclass || ''))
       .replace('{{content}}', raw)
       .replace('{{scripts}}', scripts);

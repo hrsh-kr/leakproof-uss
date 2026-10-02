@@ -1,7 +1,7 @@
-// POST /api/submit  { kind: 'review' | 'quick', ... }
+// POST /api/submit  { kind: 'review' | 'quick' | 'interview', ... }
 import crypto from 'node:crypto';
 import { getStore } from './_lib/store.js';
-import { validateReview, validateQuick, LIMITS } from './_lib/validate.js';
+import { validateReview, validateQuick, validateInterview, LIMITS } from './_lib/validate.js';
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
 function code(n) { const b = crypto.randomBytes(n); let s = ''; for (let i = 0; i < n; i++) s += ALPHABET[b[i] % ALPHABET.length]; return s; }
@@ -20,7 +20,8 @@ export default async function handler(req, res) {
   let v;
   if (body.kind === 'review') v = validateReview(body);
   else if (body.kind === 'quick') v = validateQuick(body);
-  else return res.status(400).json({ error: 'invalid', errors: ['kind must be review or quick'] });
+  else if (body.kind === 'interview') v = validateInterview(body);
+  else return res.status(400).json({ error: 'invalid', errors: ['kind must be review, quick or interview'] });
   if (!v.ok) return res.status(400).json({ error: 'invalid', errors: v.errors });
 
   const c = v.clean;
@@ -33,7 +34,9 @@ export default async function handler(req, res) {
     const receivedAt = new Date().toISOString();
     if (body.kind === 'review') {
       await store.add('review', id, { id, receipt, receivedAt, answers: c.answers, metrics: c.metrics, totalSeconds: c.totalSeconds, optionalDone: c.optionalDone });
-      if (Object.keys(c.contact).length) await store.add('contact', id, { id, receipt, receivedAt, ...c.contact });
+      if (Object.keys(c.contact).length) await store.add('contact', id, { id, receipt, receivedAt, source: 'review', ...c.contact });
+    } else if (body.kind === 'interview') {
+      await store.add('contact', id, { id, receipt, receivedAt, source: 'interview', ...c.contact });
     } else {
       await store.add('quick', id, { id, receivedAt, scene: c.scene, clear: c.clear, comment: c.comment });
     }

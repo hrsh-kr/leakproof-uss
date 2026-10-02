@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from '../scripts/build.mjs';
-import { SECTIONS, flatten, visible } from '../src/js/survey-def.mjs';
+import { SECTIONS, flatten, visible, SLOTS, MODES, INTERVIEW } from '../src/js/survey-def.mjs';
+import { TAB_OF } from '../src/js/routes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUB = path.join(ROOT, 'public');
@@ -35,7 +36,12 @@ test('internal links, anchors, scripts and styles all resolve', () => {
       if (pathPart.startsWith('/js/') || pathPart.startsWith('/css/') || pathPart.startsWith('/data/')) { if (!fs.existsSync(path.join(PUB, pathPart))) problems.push(`${p}: missing file ${pathPart}`); continue; }
       const slug = slugOf(pathPart);
       if (!html[slug]) { problems.push(`${p}: dead link ${u}`); continue; }
-      if (hash && !idsOf(slug).has(hash)) problems.push(`${p}: ${u} points to a missing anchor`);
+      if (hash && slug === 'course') {
+        // tab names and prototype roles are handled by the router, everything else must be a real id
+        const routed = ['checklist', 'prototypes', 'research', 'requirements'].includes(hash) || /^proto-\w+$/.test(hash);
+        if (!TAB_OF[hash]) problems.push(`${p}: ${u} is not routed to a tab`);
+        else if (!routed && !idsOf(slug).has(hash)) problems.push(`${p}: ${u} points to a missing anchor`);
+      } else if (hash && !idsOf(slug).has(hash)) problems.push(`${p}: ${u} points to a missing anchor`);
     }
   }
   assert.deepEqual(problems, []);
@@ -85,19 +91,56 @@ test('showIf visibility rules behave', () => {
 });
 
 test('pages generated from the project docs are populated', () => {
-  assert.match(html.requirements, /R-S01/);
-  assert.match(html.requirements, /R-U01/);
-  assert.match(html.requirements, /T-24/);
-  assert.equal((html.requirements.match(/<details class="decision">/g) || []).length, 17, 'seventeen decisions');
-  assert.match(html.requirements, /A11/);
-  assert.match(html.requirements, /RQ6/);
+  assert.match(html.course, /R-S01/);
+  assert.match(html.course, /R-U01/);
+  assert.match(html.course, /T-24/);
+  assert.equal((html.course.match(/<details class="decision">/g) || []).length, 17, 'seventeen decisions');
+  assert.match(html.course, /A11/);
+  assert.match(html.course, /RQ6/);
 });
 
-test('every deliverable on the checklist links to a real page section', () => {
-  const links = [...html.deliverables.matchAll(/<li><span class="tick[^"]*">[^<]*<\/span><div><a href="([^"]+)"/g)].map((m) => m[1]);
+test('every deliverable on the checklist links to a real section, and the tab router opens the right tab', () => {
+  const panel = (name) => { const m = new RegExp(`<div class="tabpanel" id="tab-${name}" data-panel="${name}">([\\s\\S]*?)(?=<div class="tabpanel"|$)`).exec(html.course); return m ? m[1] : ''; };
+  const checklist = panel('checklist');
+  const links = [...checklist.matchAll(/<li><span class="tick[^"]*">[^<]*<\/span><div><a href="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(links.length >= 14, `expected 14+ deliverables, found ${links.length}`);
+  // every id inside a tab panel must route to that same tab
+  for (const name of ['checklist', 'prototypes', 'research', 'requirements']) {
+    for (const m of panel(name).matchAll(/\sid="([^"]+)"/g)) {
+      if (TAB_OF[m[1]]) assert.equal(TAB_OF[m[1]], name, `#${m[1]} lives in ${name} but routes to ${TAB_OF[m[1]]}`);
+    }
+  }
+  for (const name of ['prototypes', 'research', 'requirements']) assert.equal(TAB_OF[name], name);
 });
 
-test('the header links to every main section and the review', () => {
-  for (const href of ['/how', '/try', '/prototypes', '/research', '/requirements', '/review']) assert.ok(html.index.includes(`href="${href}"`), href);
+test('the header is short: two links and the review button', () => {
+  const nav = /<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/.exec(html.index)[1];
+  assert.equal((nav.match(/<a /g) || []).length, 2, 'only Explore and Course material');
+  assert.ok(html.index.includes('href="/course"') && html.index.includes('href="/review"'));
+});
+
+test('the home page leads a newcomer through three steps and offers both ways to give feedback', () => {
+  for (const id of ['watch', 'try', 'next', 'journey', 'try-root', 'make-root']) assert.ok(html.index.includes(`id="${id}"`), id);
+  assert.ok(html.index.includes('href="/review"') && html.index.includes('href="/interview"'));
+  assert.ok(html.index.includes('class="path"'), 'three-step path');
+  assert.equal((html.index.match(/<h1[ >]/g) || []).length, 1);
+});
+
+test('old URLs still reach the new pages (redirects configured)', () => {
+  const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
+  const from = Object.fromEntries((cfg.redirects || []).map((r) => [r.source, r.destination]));
+  assert.equal(from['/how'], '/#watch');
+  assert.equal(from['/try'], '/#try');
+  assert.equal(from['/prototypes'], '/course#prototypes');
+  assert.equal(from['/research'], '/course#research');
+  assert.equal(from['/requirements'], '/course#requirements');
+  assert.equal(from['/deliverables'], '/course#checklist');
+});
+
+test('interview slots and modes are well formed and used by the review and the interview form', () => {
+  for (const list of [SLOTS, MODES]) { assert.ok(list.length >= 3); assert.equal(new Set(list.map((x) => x.value)).size, list.length); for (const x of list) assert.ok(x.value && x.label); }
+  const finish = SECTIONS.find((x) => x.id === 'finish').questions;
+  assert.equal(finish.find((q) => q.id === 'c_slots').options, SLOTS);
+  assert.equal(INTERVIEW.questions.find((q) => q.id === 'c_slots').options, SLOTS);
+  for (const id of ['c_slots', 'c_mode', 'c_contact']) assert.ok(finish.find((q) => q.id === id).requiredIf, id + ' is required once the person says yes');
 });

@@ -2,6 +2,8 @@
 import LP from './logic.mjs';
 import { h, svg, fill, $ } from './dom.js';
 import { QUESTIONS } from './scenes.js';
+import { mountQuestionForm } from './qform.js';
+import { demoPaper } from './paper.js';
 
 const notes = (what, decisions, challenge) => h('div', { class: 'proto-notes' },
   h('div', null, h('h4', null, 'What this screen is for'), h('p', null, what)),
@@ -14,38 +16,42 @@ function device(title, subtitle, screen, desktop = false) {
 
 /* ---------- Setter ---------- */
 function setterProto() {
-  const state = { n: 0, texts: ['', '', '', '', ''], done: false, receipt: '' };
+  const state = { list: [], done: false, receipt: '' };
   const screen = h('div', { class: 'screen' });
-  const wrap = h('div', { class: 'proto-layout' });
+  const formHost = h('div');
+  let form = null;
   function render() {
     if (state.done) {
-      fill(screen, [h('h4', null, 'Submitted'), h('div', { class: 'note good' }, 'Signed and encrypted on your device. No one else can read your questions.'),
+      fill(screen, [h('h4', null, 'Submitted'), h('div', { class: 'note good' }, `${state.list.length} question${state.list.length === 1 ? '' : 's'} signed and encrypted on your device. No one else can read them.`),
         h('div', { class: 'row' }, h('span', null, 'Receipt'), h('b', { class: 'mono' }, state.receipt)),
-        h('p', { class: 'muted' }, 'You can view your questions until the pool locks on the exam authority\'s date. After that you will see only their status.'),
-        h('button', { class: 'btn small outline', type: 'button', onclick: () => { Object.assign(state, { n: 0, texts: ['', '', '', '', ''], done: false }); render(); } }, 'Start again')]);
+        h('p', { class: 'muted' }, 'You can view your questions until the pool locks on the exam authority\'s date. After that you see only their status. In this demo your questions are also on the demo paper: open Try it, scene 2 or 3.'),
+        h('button', { class: 'btn small outline', type: 'button', onclick: () => { state.list = []; state.done = false; render(); } }, 'Start again')]);
       return;
     }
-    const ta = h('textarea', { class: 'field-box', rows: '4', 'aria-label': `Question ${state.n + 1}`, placeholder: 'Write the question and its four options' }, '');
-    ta.value = state.texts[state.n];
-    const filled = state.texts.filter((t) => t.trim().length >= 10).length;
-    const next = h('button', { class: 'btn small', type: 'button', disabled: state.texts[state.n].trim().length < 10 }, state.n === 4 ? 'Review and submit' : 'Next question');
-    ta.addEventListener('input', () => { state.texts[state.n] = ta.value; next.disabled = ta.value.trim().length < 10; prog.firstChild.style.width = Math.round((state.texts.filter((t) => t.trim().length >= 10).length / 5) * 100) + '%'; });
-    const prog = h('div', { class: 'progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '5' }, h('i', { style: `width:${filled * 20}%` }));
-    next.addEventListener('click', () => {
-      if (state.n < 4) { state.n++; render(); return; }
-      if (state.texts.some((t) => t.trim().length < 10)) { state.n = state.texts.findIndex((t) => t.trim().length < 10); render(); return; }
-      state.done = true; state.receipt = 'LP-' + Math.random().toString(16).slice(2, 8).toUpperCase(); render();
-    });
+    const n = state.list.length;
+    const items = state.list.map((q, i) => h('li', null, h('b', null, `${i + 1}. ${q.text}`), h('div', { class: 'muted', style: 'font-size:0.85rem' }, q.options.map((o, j) => `${'abcd'[j]}) ${o}`).join('   ')),
+      h('button', { class: 'link-btn', type: 'button', onclick: () => { state.list.splice(i, 1); render(); } }, 'Remove')));
+    const submit = h('button', { class: 'btn', type: 'button', disabled: n === 0, onclick: () => { state.done = true; state.receipt = 'LP-' + Math.random().toString(16).slice(2, 8).toUpperCase(); render(); } }, n === 0 ? 'Submit' : `Submit ${n} question${n === 1 ? '' : 's'}`);
+    const holder = h('div');
     fill(screen, [h('div', { class: 'row' }, h('b', null, 'Your cell'), h('span', { class: 'badge' }, 'Physics · Mechanics · Medium')),
-      h('p', { class: 'muted' }, `Question ${state.n + 1} of 5. Only you can see this.`), prog, ta,
-      h('div', { class: 'row' }, h('button', { class: 'link-btn', type: 'button', disabled: state.n === 0, onclick: () => { state.n--; render(); } }, 'Back'), next)]);
+      h('p', { class: 'muted' }, `Add up to 5 questions (${n} of 5). Only you can see them.`),
+      n ? h('ol', { class: 'qf-list' }, items) : null,
+      n < 5 ? holder : h('div', { class: 'note' }, 'That is all 5. Submit when you are ready.'),
+      h('div', { class: 'row' }, h('span', { class: 'muted' }, n === 0 ? 'Add at least one question.' : ''), submit)]);
+    if (n < 5) {
+      form = mountQuestionForm(holder, {
+        submitLabel: 'Register this question',
+        usedTexts: () => state.list.map((q) => q.text),
+        hint: 'It formats itself. Registered questions also join the demo paper.',
+        onRegister: (q) => { state.list.push(q); try { demoPaper().add({ text: q.text, options: q.options, correct: q.correct }); } catch { /* ignore */ } render(); return ''; },
+      });
+    }
   }
   render();
-  fill(wrap, [device('Setter portal', 'phone', screen),
+  return h('div', { class: 'proto-layout' }, device('Setter portal', 'phone', screen),
     notes('Let a setter write and submit their few questions without learning anything about cryptography.',
-      ['One question per screen, with progress, so the task feels small.', 'Signing and encryption happen on submit; the person only sees a receipt.', 'The screen says plainly who can and cannot read their questions.'],
-      ['Would you trust a receipt as proof your questions were safe?', 'Is "signed and encrypted" meaningful to a teacher, or should we say something else?', 'What would stop you submitting on time?'])]);
-  return wrap;
+      ['A dedicated field for the question and one for each of the four options, so nothing has to be typed in a special format.', 'It tidies what you type, shows exactly how the question will be registered, and offers example questions to start from.', 'Signing and encryption happen on submit; the person only sees a receipt, and the screen says plainly who can and cannot read their questions.'],
+      ['Would you trust a receipt as proof your questions were safe?', 'Are four option fields right, or do real papers need other formats (numeric answers, multiple correct, images)?', 'What would stop you submitting on time?']));
 }
 
 /* ---------- Custodian ---------- */
@@ -149,7 +155,7 @@ function investigatorProto() {
 /* ---------- Storyboard ---------- */
 const S = (...kids) => svg('svg', { viewBox: '0 0 200 96', role: 'img', 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, ...kids);
 const person = (x, y) => [svg('circle', { cx: x, cy: y, r: 7 }), svg('path', { d: `M${x - 10} ${y + 26}v-8a10 10 0 0 1 20 0v8` })];
-const PANELS = [
+const panels = () => [
   { b: 'Seated and ready', t: 'The superintendent checks candidates in and sends a signed seating report.', art: S(...person(40, 34), ...person(90, 34), ...person(140, 34), svg('path', { d: 'M20 82h160' })) },
   { b: 'Three keys', t: 'Three custodians, in different places, approve on their own devices.', art: S(...[40, 100, 160].flatMap((x) => [svg('circle', { cx: x, cy: 40, r: 10 }), svg('path', { d: `M${x + 10} 40h16M${x + 20} 40v7M${x + 26} 40v7` })])) },
   { b: 'The paper opens', t: 'Only now is the key rebuilt. If anything were missing, nothing would print.', art: S(svg('rect', { x: 70, y: 40, width: 60, height: 40, rx: 6 }), svg('path', { d: 'M82 40v-10a18 18 0 0 1 34-6' })) },
@@ -158,24 +164,23 @@ const PANELS = [
   { b: 'We trace it', t: 'The tool lists the seats that could match and a person reviews before anyone is named.', art: S(svg('circle', { cx: 100, cy: 48, r: 24 }), svg('path', { d: 'M90 48l7 7 14-14' }), svg('circle', { cx: 40, cy: 24, r: 4 }), svg('circle', { cx: 160, cy: 70, r: 4 }), svg('circle', { cx: 150, cy: 20, r: 4 })) },
 ];
 function storyboard() {
-  return h('ol', { class: 'story' }, PANELS.map((p) => h('li', null, p.art, h('p', null, h('b', null, p.b), p.t))));
+  return h('ol', { class: 'story' }, panels().map((p) => h('li', null, p.art, h('p', null, h('b', null, p.b), p.t))));
 }
 
 /* ---------- Mount ---------- */
 const BUILDERS = { setter: setterProto, custodian: custodianProto, centre: centreProto, investigator: investigatorProto };
-const root = $('#proto-root');
-if (root) {
+export function mountPrototypes(root, { initial = 'centre' } = {}) {
   const labels = { setter: 'Setter', custodian: 'Custodian', centre: 'Centre', investigator: 'Investigator' };
   const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Prototype screens' });
   const stage = h('div', { style: 'width:100%' });
   function show(k) {
     fill(stage, [BUILDERS[k]()]);
     tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === k)));
-    history.replaceState(null, '', '#' + k);
   }
   for (const k of Object.keys(BUILDERS)) tabs.append(h('button', { type: 'button', role: 'tab', 'data-k': k, 'aria-selected': 'false', onclick: () => show(k) }, labels[k]));
   fill(root, [tabs, stage]);
-  const start = location.hash.slice(1);
-  show(BUILDERS[start] ? start : 'centre');
+  show(BUILDERS[initial] ? initial : 'centre');
+  return { show };
 }
-const sb = $('#storyboard'); if (sb) sb.replaceWith(storyboard());
+
+export function mountStoryboard(host) { const ol = storyboard(); ol.id = host.id || 'storyboard'; host.replaceWith(ol); }

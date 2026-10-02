@@ -1,5 +1,5 @@
-// Strict validation of submissions against the survey definition (same file the page renders from).
-import { flatten, visible, CONTACT_IDS, TASK_IDS, QUICK_SCENES } from '../../src/js/survey-def.mjs';
+// Strict validation of submissions against the survey definition (the same file the page renders from).
+import { flatten, visible, requiredNow, CONTACT_IDS, TASK_IDS, QUICK_SCENES, INTERVIEW } from '../../src/js/survey-def.mjs';
 
 export const LIMITS = { body: 60000, quickComment: 1000 };
 const ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
@@ -7,24 +7,22 @@ const RESULTS = ['done', 'skipped', 'timeout'];
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isInt = (v) => Number.isInteger(v);
 const cleanText = (s) => s.replace(/\u0000/g, '').trim();
-const QUESTIONS = flatten().filter((q) => q.type !== 'task');
-const BY_ID = new Map(QUESTIONS.map((q) => [q.id, q]));
 
-export function validateReview(body) {
+const REVIEW_QS = flatten().filter((q) => q.type !== 'task');
+const INTERVIEW_QS = INTERVIEW.questions;
+
+/** Checks `a` against question list `qs`. Returns { errors, clean }. */
+function checkAnswers(qs, a) {
   const errors = [];
-  const allowedTop = ['kind', 'clientId', 'answers', 'metrics', 'totalSeconds', 'optionalDone', 'website'];
-  for (const k of Object.keys(body)) if (!allowedTop.includes(k)) errors.push(`unknown field ${k}`);
-  if (typeof body.clientId !== 'string' || !ID_RE.test(body.clientId)) errors.push('clientId is missing or malformed');
-  if (!isObj(body.answers)) { errors.push('answers must be an object'); return { ok: false, errors }; }
-  const a = body.answers;
-
-  for (const k of Object.keys(a)) if (!BY_ID.has(k)) errors.push(`unknown answer ${k}`);
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  for (const k of Object.keys(a)) if (!byId.has(k)) errors.push(`unknown answer ${k}`);
   const clean = {};
-  for (const q of QUESTIONS) {
+  for (const q of qs) {
     const present = Object.prototype.hasOwnProperty.call(a, q.id);
     const v = a[q.id];
     if (!visible(q, a)) { if (present) errors.push(`${q.id} was answered but should be hidden`); continue; }
-    if (!present) { if (q.required) errors.push(`${q.id} is required`); continue; }
+    const need = requiredNow(q, a);
+    if (!present) { if (need) errors.push(`${q.id} is required`); continue; }
     switch (q.type) {
       case 'consent':
         if (v !== true) errors.push('consent must be given'); else clean[q.id] = true; break;
@@ -34,7 +32,7 @@ export function validateReview(body) {
         if (!Array.isArray(v) || v.some((x) => typeof x !== 'string') || new Set(v).size !== v.length) { errors.push(`${q.id} must be a list of distinct choices`); break; }
         if (!v.every((x) => q.options.some((o) => o.value === x))) { errors.push(`${q.id} has an invalid choice`); break; }
         if (v.length > (q.max || q.options.length)) { errors.push(`${q.id} has too many choices`); break; }
-        if (q.required && v.length === 0) { errors.push(`${q.id} is required`); break; }
+        if (need && v.length === 0) { errors.push(`${q.id} is required`); break; }
         clean[q.id] = v; break;
       }
       case 'scale':
@@ -45,13 +43,32 @@ export function validateReview(body) {
         if (typeof v !== 'string') { errors.push(`${q.id} must be text`); break; }
         const t = cleanText(v);
         if (t.length > (q.maxLen || 1000)) { errors.push(`${q.id} is too long`); break; }
-        if (q.required && t.length < (q.minLen || 1)) { errors.push(`${q.id} is too short`); break; }
+        if (t && q.minLen && t.length < q.minLen) { errors.push(`${q.id} is too short`); break; }
+        if (need && !t) { errors.push(`${q.id} is required`); break; }
         if (t) clean[q.id] = t;
         break;
       }
       default: errors.push(`${q.id} has an unsupported type`);
     }
   }
+  return { errors, clean };
+}
+
+function splitContact(clean) {
+  const contact = {};
+  for (const id of CONTACT_IDS) if (clean[id] !== undefined) { contact[id] = clean[id]; delete clean[id]; }
+  return contact;
+}
+
+export function validateReview(body) {
+  const errors = [];
+  const allowedTop = ['kind', 'clientId', 'answers', 'metrics', 'totalSeconds', 'optionalDone', 'website'];
+  for (const k of Object.keys(body)) if (!allowedTop.includes(k)) errors.push(`unknown field ${k}`);
+  if (typeof body.clientId !== 'string' || !ID_RE.test(body.clientId)) errors.push('clientId is missing or malformed');
+  if (!isObj(body.answers)) { errors.push('answers must be an object'); return { ok: false, errors }; }
+
+  const r = checkAnswers(REVIEW_QS, body.answers);
+  errors.push(...r.errors);
 
   const metrics = {};
   if (body.metrics !== undefined) {
@@ -68,9 +85,20 @@ export function validateReview(body) {
   if (body.optionalDone !== undefined && typeof body.optionalDone !== 'boolean') errors.push('optionalDone must be true or false');
 
   if (errors.length) return { ok: false, errors };
-  const contact = {};
-  for (const id of CONTACT_IDS) if (clean[id]) { contact[id] = clean[id]; delete clean[id]; }
-  return { ok: true, errors: [], clean: { clientId: body.clientId, answers: clean, metrics, totalSeconds, optionalDone: body.optionalDone === true, contact } };
+  const contact = splitContact(r.clean);
+  return { ok: true, errors: [], clean: { clientId: body.clientId, answers: r.clean, metrics, totalSeconds, optionalDone: body.optionalDone === true, contact } };
+}
+
+export function validateInterview(body) {
+  const errors = [];
+  for (const k of Object.keys(body)) if (!['kind', 'clientId', 'answers', 'website'].includes(k)) errors.push(`unknown field ${k}`);
+  if (typeof body.clientId !== 'string' || !ID_RE.test(body.clientId)) errors.push('clientId is missing or malformed');
+  if (!isObj(body.answers)) { errors.push('answers must be an object'); return { ok: false, errors }; }
+  const r = checkAnswers(INTERVIEW_QS, body.answers);
+  errors.push(...r.errors);
+  if (errors.length) return { ok: false, errors };
+  delete r.clean.consent;
+  return { ok: true, errors: [], clean: { clientId: body.clientId, contact: r.clean } };
 }
 
 export function validateQuick(body) {

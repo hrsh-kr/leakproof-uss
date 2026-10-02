@@ -40,7 +40,7 @@ export function voiceControl(textarea, { onChange } = {}) {
         const tr = e.results[i][0].transcript;
         if (e.results[i].isFinal) finalText += tr + ' '; else interim += tr;
       }
-      textarea.value = (base + finalText + interim).replace(/\s+$/, interim ? '' : '');
+      textarea.value = (base + finalText + interim).trimEnd();
       if (onChange) onChange(textarea.value);
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
     };
