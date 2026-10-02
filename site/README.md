@@ -2,7 +2,7 @@
 
 The Phase I submission as a website, built to be simple for a newcomer and complete for a reviewer.
 
-**For a newcomer** (`/`): a three-step path. 1. Watch an animated flowchart. 2. Try four working ideas, one at a time, and add your own question. 3. Tell us: the Review (12 to 15 minutes, typed, with a participation receipt) or a short chat (`/interview`).
+**For a newcomer** (`/`): a very short manual (how to use the site and how to give the best feedback), then a three-step path. 1. Watch an animated flowchart. 2. Try four working ideas, one at a time, and add your own question. 3. Tell us: the Review (12 to 15 minutes, typed, with a participation receipt) or a short chat (`/interview`).
 
 **For a reviewer** (`/course`): one page with four tabs: Checklist (where each deliverable lives), Prototypes (role screens, storyboard, task flows), Research (plan, method, live results, cases, comparison, SWOT, limits) and Requirements (requirements, threats, assumptions, 17 decisions, scope).
 
@@ -14,14 +14,14 @@ Old URLs (`/how`, `/try`, `/prototypes`, `/research`, `/requirements`, `/deliver
     src/docs/        snapshot of project docs the Requirements tab renders (refreshed on build)
     api/             Vercel functions: submit, stats, export (+ _lib)
     scripts/         build, dev server, link checker, survey table generator
-    tests/           109 tests
+    tests/           120 tests
 
 ## Run and test
 
     cd project/site
     npm install          # dev dependency (jsdom) for the UI tests only
     npm run dev          # http://localhost:3000   (PORT=3011 npm run dev to change)
-    npm test             # 109 tests
+    npm test             # 120 tests (builds first)
     node scripts/check-links.mjs   # checks every external source link (needs network)
 
 Locally, answers go to `.data/` and the admin key is `dev-admin-key`.
@@ -59,3 +59,7 @@ No third-party scripts, trackers or fonts. The site denies microphone access ent
 ## Voice input
 
 Switched off (`src/js/config.mjs`, `FEATURES.voice`). Browser dictation depends on the browser vendor's speech service and failed with "speech service is not reachable" in real use. See decision D17. To try it again, set the flag to true and rebuild; the tests then cover it.
+
+## The animated flowchart
+
+Two layouts: a wide one for laptops and tablets over 900px (drawn 960 units across, shown at up to about 1000px, text 15 to 18px) and a vertical track for phones. It switches live when the window is resized and keeps the current step. `tests/flow-size.test.mjs` fails if any label would render below a readable size at the widths where it is used.

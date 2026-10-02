@@ -211,6 +211,48 @@ test('flowchart: autoplay advances on its own, pauses on request, and stops at t
   ctl.pause();
 });
 
+test('flowchart (phone layout): a vertical track with the same behaviour', () => {
+  setupDom('index', { speech: Rec, narrow: true });
+  const root = document.createElement('div'); document.body.append(root); const ctl = mountJourney(root);
+  assert.equal(ctl.layout(), 'tall');
+  assert.equal(root.querySelector('svg').getAttribute('class'), 'tall');
+  assert.equal(root.querySelectorAll('.st').length, 8);
+  const cap = () => text(root.querySelector('.flow-cap'));
+  const token = () => root.querySelector('.tok-g').style.transform;
+  const y0 = token();
+  const [, , next] = root.querySelectorAll('.flow-ctl .icon');
+  click(next); assert.match(cap(), /Step 2 of 8/); assert.notEqual(token(), y0);
+  assert.match(token(), /translate\(32px, 11\dpx\)|translate\(32px, \d+px\)/, 'the token moves down the track');
+  root.querySelectorAll('.st')[3].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.match(cap(), /Step 4 of 8/);
+  assert.equal(root.querySelector('.key-dot').style.opacity, '1');
+  root.querySelectorAll('.st')[5].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.match(root.querySelector('.key-label').textContent, /3 of 5 pieces turned/);
+  root.querySelectorAll('.st')[6].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  const copies = [...root.querySelectorAll('svg g[aria-hidden]')].find((g) => g.textContent.includes('different order each'));
+  assert.equal(copies.style.opacity, '1');
+  assert.equal([...root.querySelectorAll('.logchip')].filter((c) => c.style.opacity === '1').length, 7);
+  type(root.querySelector('input[type=range]'), '8'); assert.match(cap(), /Step 8 of 8/);
+  ctl.pause();
+});
+
+test('flowchart: resizing between phone and laptop width keeps the current step and the controls', () => {
+  setupDom('index', { speech: Rec, narrow: false });
+  const root = document.createElement('div'); document.body.append(root); const ctl = mountJourney(root);
+  assert.equal(ctl.layout(), 'wide');
+  root.querySelectorAll('.st')[4].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.match(text(root.querySelector('.flow-cap')), /Step 5 of 8/);
+  window.__setNarrow(true);
+  assert.equal(ctl.layout(), 'tall'); assert.equal(root.querySelectorAll('svg.tall').length, 1); assert.equal(root.querySelectorAll('svg.wide').length, 0);
+  assert.equal(root.querySelector('.st.on').getAttribute('aria-label'), 'Step 5: Deliver', 'same step highlighted after the switch');
+  assert.match(text(root.querySelector('.flow-cap')), /Step 5 of 8/);
+  assert.equal([...root.querySelectorAll('.logchip')].filter((c) => c.style.opacity === '1').length, 5);
+  window.__setNarrow(false);
+  assert.equal(ctl.layout(), 'wide'); assert.equal(root.querySelector('.st.on').getAttribute('aria-label'), 'Step 5: Deliver');
+  click(root.querySelectorAll('.flow-ctl .icon')[2]); assert.match(text(root.querySelector('.flow-cap')), /Step 6 of 8/);
+  ctl.pause();
+});
+
 test('flowchart: with reduced motion it does not autoplay', () => {
   setupDom('index', { speech: Rec, reducedMotion: true, io: true });
   const root = document.createElement('div'); document.body.append(root); mountJourney(root);

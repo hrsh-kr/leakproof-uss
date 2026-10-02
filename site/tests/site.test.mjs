@@ -120,11 +120,21 @@ test('the header is short: two links and the review button', () => {
   assert.ok(html.index.includes('href="/course"') && html.index.includes('href="/review"'));
 });
 
-test('the home page leads a newcomer through three steps and offers both ways to give feedback', () => {
-  for (const id of ['watch', 'try', 'next', 'journey', 'try-root', 'make-root']) assert.ok(html.index.includes(`id="${id}"`), id);
+test('the home page has a very short manual, then leads a newcomer through three steps and offers both ways to give feedback', () => {
+  for (const id of ['manual', 'watch', 'try', 'next', 'journey', 'try-root', 'make-root']) assert.ok(html.index.includes(`id="${id}"`), id);
   assert.ok(html.index.includes('href="/review"') && html.index.includes('href="/interview"'));
-  assert.ok(html.index.includes('class="path"'), 'three-step path');
   assert.equal((html.index.match(/<h1[ >]/g) || []).length, 1);
+  const manual = /<section[^>]*id="manual"[\s\S]*?<\/section>/.exec(html.index)[0];
+  const words = manual.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+  assert.ok(words <= 140, `the manual must stay very short (${words} words)`);
+  const steps = [...manual.matchAll(/<ol>([\s\S]*?)<\/ol>/g)][0][1].match(/<li>/g).length;
+  assert.equal(steps, 3, 'three steps: watch, try, tell us');
+  const tips = [...manual.matchAll(/<ul>([\s\S]*?)<\/ul>/g)][0][1].match(/<li>/g).length;
+  assert.ok(tips >= 4 && tips <= 6, `${tips} feedback tips`);
+  for (const target of ['#watch', '#try', '/review', '/interview']) assert.ok(manual.includes(`href="${target}"`), `manual links to ${target}`);
+  assert.match(manual, /expected/); assert.match(manual, /exact moment/); assert.match(manual, /change first/); assert.match(manual, /Not quite/);
+  // the manual comes right after the hero, before the rest of the page
+  assert.ok(html.index.indexOf('id="manual"') < html.index.indexOf('id="why"') && html.index.indexOf('id="manual"') < html.index.indexOf('id="watch"'));
 });
 
 test('old URLs still reach the new pages (redirects configured)', () => {

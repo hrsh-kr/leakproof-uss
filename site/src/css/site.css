@@ -189,18 +189,21 @@ input[type="range"] { width: min(100%, 360px); accent-color: var(--accent); heig
 .flow svg { width: 100%; height: auto; display: block; overflow: visible; }
 .flow .st rect { fill: var(--card); stroke: var(--line); stroke-width: 1.5; transition: fill 0.3s, stroke 0.3s; }
 .scene:not(.alt) .flow .st rect { fill: var(--bg); }
-.flow .st text { fill: var(--muted); font-size: 11.5px; text-anchor: middle; font-family: var(--font); transition: fill 0.3s; }
+.flow .st text { fill: var(--muted); text-anchor: middle; font-family: var(--font); transition: fill 0.3s; }
 .flow .st.on rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.5; }
 .flow .st.on text { fill: var(--ink); font-weight: 600; }
+.flow .st { cursor: pointer; }
+.flow svg.tall { max-width: 460px; margin-inline: auto; }
+.flow .tok-ring { stroke-width: 2.5; }
 .flow .st.done rect { stroke: var(--accent); }
 .flow .lane text { fill: var(--muted); font-size: 11px; font-family: var(--font); }
 .flow .lane line { stroke: var(--line); stroke-dasharray: 3 4; }
-.flow .rail { stroke: var(--line); stroke-width: 3; fill: none; stroke-linecap: round; }
-.flow .rail-on { stroke: var(--accent); stroke-width: 3; fill: none; stroke-linecap: round; }
+.flow .rail { stroke: var(--line); stroke-width: 3.5; fill: none; stroke-linecap: round; }
+.flow .rail-on { stroke: var(--accent); stroke-width: 3.5; fill: none; stroke-linecap: round; }
 .flow .tok { fill: var(--accent); }
 .flow .tok-ring { fill: none; stroke: var(--accent); stroke-width: 2; opacity: 0.35; }
 .flow .logchip rect { fill: var(--good-soft); stroke: var(--good); stroke-width: 1; }
-.flow .logchip text { fill: var(--good); font-size: 9.5px; text-anchor: middle; font-family: var(--font); }
+.flow .logchip text { fill: var(--good); text-anchor: middle; font-family: var(--font); }
 .flow-cap { display: grid; gap: 6px; text-align: left; min-height: 8.5rem; }
 .flow-cap h3 { font-size: 1.3rem; }
 .flow-cap .who { font-size: 0.82rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -390,3 +393,17 @@ details.make > summary { font-weight: 500; }
 @media (max-width: 520px) { .qf-row { grid-template-columns: 24px minmax(0, 1fr) auto; } .qf-correct span { display: none; } .hide-sm { display: none; } .ctabs .tabs { width: 100%; flex-wrap: nowrap; } .ctabs .tabs button { flex: 1 1 auto; padding: 5px 6px; font-size: 0.8rem; white-space: nowrap; } }
 #try-root { display: grid; gap: 22px; justify-items: center; }
 .scene-panel { margin-top: 4px; }
+
+/* the flowchart gets the full width of the page, not the narrow reading column */
+#watch .wrap { max-width: 1040px; }
+.flow { padding: 22px 18px; }
+@media (max-width: 520px) { .flow { padding: 16px 10px; border-radius: 18px; } }
+
+/* newcomer manual */
+.manual-head { display: grid; gap: 6px; justify-items: center; text-align: center; }
+.manual { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; width: 100%; }
+.manual .tile { background: var(--card); text-align: left; gap: 10px; padding: 22px 24px; }
+.manual .tile h3 { font-size: 1.15rem; }
+.manual ol, .manual ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 9px; color: var(--ink); font-size: 1rem; }
+.manual ol li::marker { color: var(--accent); font-weight: 700; }
+.manual b { font-weight: 600; }

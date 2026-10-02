@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export function setupDom(page = 'index', { hash = '', speech = null, reducedMotion = false, io = false } = {}) {
+export function setupDom(page = 'index', { hash = '', speech = null, reducedMotion = false, io = false, narrow = false } = {}) {
   const file = path.join(ROOT, 'public', page + '.html');
   if (!fs.existsSync(file)) throw new Error('public/' + page + '.html is missing: run `npm test` (it builds first) or `npm run build`');
   const html = fs.readFileSync(file, 'utf8');
@@ -15,7 +15,11 @@ export function setupDom(page = 'index', { hash = '', speech = null, reducedMoti
   // things jsdom does not implement
   w.scrollTo = () => {};
   w.Element.prototype.scrollIntoView = function () {};
-  w.matchMedia = (q) => ({ matches: reducedMotion && /reduce/.test(q), media: q, addEventListener() {}, removeEventListener() {} });
+  // a controllable matchMedia: reduced-motion, and a "narrow window" query that tests can flip with window.__setNarrow(true)
+  let isNarrow = narrow; const listeners = [];
+  w.matchMedia = (q) => ({ media: q, get matches() { return /reduce/.test(q) ? reducedMotion : /max-width/.test(q) ? isNarrow : false; },
+    addEventListener(type, fn) { if (type === 'change') listeners.push(fn); }, removeEventListener() {} });
+  w.__setNarrow = (b) => { isNarrow = b; listeners.forEach((fn) => fn({ matches: b })); };
   if (speech) w.webkitSpeechRecognition = speech;
   if (io) {
     w.IntersectionObserver = class { constructor(cb) { this.cb = cb; } observe(el) { this.cb([{ isIntersecting: true, target: el }]); } disconnect() {} };
