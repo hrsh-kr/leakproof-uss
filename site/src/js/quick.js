@@ -1,4 +1,4 @@
-// "Was this clear?" quick feedback under each scene. One tap, optional comment (typed or spoken).
+// "Was this clear?" quick feedback under each scene. One tap, optional comment.
 import { h, fill } from './dom.js';
 import { postJson, newClientId } from './api.js';
 import { voiceControl } from './voice.js';

@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build } from '../scripts/build.mjs';
 import { SECTIONS, flatten, visible, SLOTS, MODES, INTERVIEW } from '../src/js/survey-def.mjs';
 import { TAB_OF } from '../src/js/routes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUB = path.join(ROOT, 'public');
-const pages = build();
+// `npm test` builds once beforehand; the tests only read public/ (so parallel test files cannot race)
+if (!fs.existsSync(path.join(PUB, 'index.html'))) throw new Error('public/ is missing: run `npm test` (or `npm run build` first)');
+const pages = fs.readdirSync(PUB).filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, ''));
 const html = Object.fromEntries(pages.map((p) => [p, fs.readFileSync(path.join(PUB, p + '.html'), 'utf8')]));
 
 test('every page builds, has one h1 (or a review shell), a title and no unresolved placeholders', () => {

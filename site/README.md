@@ -2,7 +2,7 @@
 
 The Phase I submission as a website, built to be simple for a newcomer and complete for a reviewer.
 
-**For a newcomer** (`/`): a three-step path. 1. Watch an animated flowchart. 2. Try four working ideas, one at a time, and add your own question. 3. Tell us: the Review (12 to 15 minutes, typed or spoken, with a participation receipt) or a short chat (`/interview`).
+**For a newcomer** (`/`): a three-step path. 1. Watch an animated flowchart. 2. Try four working ideas, one at a time, and add your own question. 3. Tell us: the Review (12 to 15 minutes, typed, with a participation receipt) or a short chat (`/interview`).
 
 **For a reviewer** (`/course`): one page with four tabs: Checklist (where each deliverable lives), Prototypes (role screens, storyboard, task flows), Research (plan, method, live results, cases, comparison, SWOT, limits) and Requirements (requirements, threats, assumptions, 17 decisions, scope).
 
@@ -29,7 +29,7 @@ Locally, answers go to `.data/` and the admin key is `dev-admin-key`.
 ## What the tests cover
 
 Backend (API): validation of every field, strict rejection of unknown or hidden answers, size limits, honeypot, prototype pollution, duplicate submissions, contact details stored apart, admin key checks, CSV formula injection, small-group hiding in public stats. A fake Upstash server exercises the production storage path over HTTP, including 40 simultaneous submissions.
-Behaviour (browser-like): the question form (formatting, errors, presets), the four scenes with real encryption, the animated flowchart (steps, token, key pieces, autoplay, pause, reduced motion), voice input (with a fake speech engine: interim and final text, keep listening, errors), the whole review (typed and spoken answers, optional pages, follow-up call, receipt, retries, resume after refresh), the interview request, home path, the course tab router, the setter prototype, live results, the admin view.
+Behaviour (browser-like): the question form (formatting, errors, presets), the four scenes with real encryption, the animated flowchart (steps, token, key pieces, autoplay, pause, reduced motion), voice input (switched off by default; its code is kept and tested with a fake speech engine, and a separate test proves nothing voice-related appears with the shipped defaults), the whole review (typed and spoken answers, optional pages, follow-up call, receipt, retries, resume after refresh), the interview request, home path, the course tab router, the setter prototype, live results, the admin view.
 Structure: no dead links or anchors, no unsafe DOM writes, no third-party scripts, survey definition coherence, redirects.
 Mutation checks were run by breaking code on purpose to confirm the tests notice.
 
@@ -54,4 +54,8 @@ Questions, interview slots and modes: `src/js/survey-def.mjs` only (page and ser
 
 ## Safety notes
 
-No third-party scripts, trackers or fonts. The only outside call is the browser's own speech recognition when someone taps the microphone (we keep only the text). Public stats are aggregates and hide groups under 5. Names and contact details are stored apart from answers and are not in the default export. Responses are append-only; delete raw data from the Upstash console after the final report.
+No third-party scripts, trackers or fonts. The site denies microphone access entirely. Public stats are aggregates and hide groups under 5. Names and contact details are stored apart from answers and are not in the default export. Responses are append-only; delete raw data from the Upstash console after the final report.
+
+## Voice input
+
+Switched off (`src/js/config.mjs`, `FEATURES.voice`). Browser dictation depends on the browser vendor's speech service and failed with "speech service is not reachable" in real use. See decision D17. To try it again, set the flag to true and rebuild; the tests then cover it.

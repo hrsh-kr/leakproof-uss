@@ -1,10 +1,10 @@
 // UI behaviour in a browser-like environment: question form, scenes, flowchart animation, voice.
+// Voice is switched off in production (src/js/config.mjs). These tests switch it on to keep the code verified.
+globalThis.__LP_VOICE = true;
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { build } from '../scripts/build.mjs';
 import { setupDom, click, type, tick, text, fakeSpeech } from './dom-env.mjs';
 
-build();
 const Rec = fakeSpeech();
 setupDom('index', { speech: Rec });
 

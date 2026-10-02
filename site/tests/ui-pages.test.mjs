@@ -1,11 +1,11 @@
 // Page-level behaviour: the review, the interview request, home, the course router, prototypes, feedback box, results and admin.
+// Voice is switched off in production (src/js/config.mjs). These tests switch it on to keep the code verified.
+globalThis.__LP_VOICE = true;
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { build } from '../scripts/build.mjs';
 import { setupDom, click, type, tick, text, fakeSpeech } from './dom-env.mjs';
 
 globalThis.__LP_TEST = true;
-build();
 const Rec = fakeSpeech();
 setupDom('index', { speech: Rec });
 

@@ -149,12 +149,12 @@ Questions must be decrypted once so a paper can be sealed. Options:
 - **Proxies: faculty who set papers, TAs, exam-cell staff, invigilators, students who took national exams.** Pros: reachable; close in activity. Cons: not identical; findings may not transfer.
 - **Choice: proxies now, label as a limitation, plan a second round later.**
 
-### D17. Feedback channel
-- **Google Forms, typed.** Pros: familiar, free. Cons: heavy, no scene context, long forms lower response rates, no voice.
-- **Tally, typed.** Pros: free, clean, anonymous, popup with a hidden `scene` field so feedback arrives with context. Cons: no voice recording (file upload only).
-- **Tally plus WhatsApp voice note.** Pros: zero setup, voice in 30 seconds, everyone has it. Cons: we see the sender's number; recordings live on one phone.
-- **Tally plus a voice-native form (Typeform, AidaForm, FormHug, Voiceform, Jotform widget).** Pros: anonymous, central storage, some transcription. Cons: another tool; free-plan limits not verified.
-- **Choice: Tally for the short typed core, plus a voice link (WhatsApp by default, voice-native form if anonymity matters).** Why: it minimises effort for the respondent (typed is optional, voice is 30 seconds) while keeping a small anonymous quantitative core for the course. Revisit if: fewer than 10 voice notes arrive by Oct 3, or respondents say WhatsApp feels intrusive.
+### D17. Feedback channel (revised 2 Oct)
+- **Google Forms or Tally, typed.** Pros: quick to set up, familiar. Cons: a second place to send people, no task timing or tap counts, no live results on our own site, hard to tie to the prototype.
+- **Tally plus a voice link (a WhatsApp voice note or a voice-form tool).** Pros: lowest effort for the person answering. Cons: WhatsApp shows the sender's number, another tool and account, free-plan limits not verified. This was the first plan.
+- **Our own survey on the site, typed, with browser dictation.** Pros: talking is easier than typing, and nothing extra to install. Cons: dictation runs on the browser vendor's speech service. In a real test it failed with "speech service is not reachable", and it fails for many people on some browsers, networks and phones. A feature that fails for some people is worse than none.
+- **Our own survey on the site, typed only, plus an interview booking form.** Pros: one place for everything; task timing, taps and ratings recorded; live results; contact details stored apart; people who prefer to talk book a real conversation, which is richer than a recording. Cons: typing takes more effort; we need our own storage and tests.
+- **Choice: our own survey, typed, with interview booking. Dictation is switched off by a flag (`config.mjs`) and its code and tests are kept.** Revisit if: people skip the open questions because typing is hard. Then try recording short audio notes and transcribing them ourselves, with clear consent.
 
 ## 5. What we do not know yet (research questions)
 

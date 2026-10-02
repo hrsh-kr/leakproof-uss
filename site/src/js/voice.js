@@ -1,6 +1,7 @@
 // Voice to text for any textarea. Uses the browser's built-in speech recognition (Chrome, Edge, Safari).
 // We keep only the text. Audio is never recorded or uploaded by this site.
 import { h, svg } from './dom.js';
+import { FEATURES } from './config.mjs';
 
 const Rec = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 export const voiceSupported = () => !!Rec;
@@ -10,6 +11,7 @@ const micIcon = () => svg('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: '
 
 /** Returns a small control row to place under `textarea`. */
 export function voiceControl(textarea, { onChange } = {}) {
+  if (!FEATURES.voice) return null;     // feature switched off (see config.mjs)
   const wrap = h('div', { class: 'mic-row' });
   if (!Rec) {
     wrap.append(h('span', null, 'Voice needs Chrome, Edge or Safari. You can type instead.'));

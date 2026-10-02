@@ -15,7 +15,7 @@ const seq = { min: 1, max: 7, minLabel: 'Very difficult', maxLabel: 'Very easy' 
 const stuckQ = (t) => ({ id: `${t}_stuck`, type: 'single', required: true, label: 'Did you get stuck or confused at any point in this task?',
   options: [{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }] });
 const incidentQ = (t) => ({ id: `${t}_incident`, type: 'text', voice: true, maxLen: 1000, showIf: { id: `${t}_stuck`, equals: 'yes' },
-  label: 'Tell us about that moment.', help: 'What were you trying to do? What did you expect to happen? What happened instead? You can type or speak.' });
+  label: 'Tell us about that moment.', help: 'What were you trying to do? What did you expect to happen? What happened instead?' });
 const slowQ = (t) => ({ id: `${t}_slow`, type: 'single', showIf: { id: `${t}_stuck`, equals: 'yes' }, label: 'How much did it get in your way?',
   options: [{ value: '1', label: 'A little: I noticed it but carried on' }, { value: '2', label: 'Some: it slowed me down' }, { value: '3', label: 'A lot: I nearly gave up' }, { value: '4', label: 'I could not complete the task' }] });
 const seqQ = (t) => ({ id: `${t}_seq`, type: 'scale', required: true, label: 'Overall, this task was…', scale: seq });
@@ -57,7 +57,7 @@ export const SECTIONS = [
         { value: 'storage', label: 'In storage at the exam centre' }, { value: 'hall', label: 'Inside the exam hall' }, { value: 'after', label: 'After the exam is over' }, { value: 'dontknow', label: 'I do not know' }] },
       { id: 'trust_before', type: 'scale', required: true, label: 'How much do you trust that exam papers stay secret until the exam?', scale: { min: 1, max: 5, minLabel: 'Not at all', maxLabel: 'Completely' } },
       { id: 'accept_before', type: 'scale', required: true, label: 'How acceptable would it be if the paper were printed at the exam centre shortly before the exam, instead of arriving already printed?', scale: { min: 1, max: 5, minLabel: 'Not acceptable', maxLabel: 'Fully acceptable' } },
-      { id: 'model', type: 'text', voice: true, maxLen: 1000, label: 'In your own words: what happens to a paper from the time it is written until it reaches the candidate?', help: 'Optional. A few sentences is plenty. You can type or speak.' },
+      { id: 'model', type: 'text', voice: true, maxLen: 1000, label: 'In your own words: what happens to a paper from the time it is written until it reaches the candidate?', help: 'Optional. A few sentences is plenty.' },
     ],
   },
   {
@@ -107,14 +107,14 @@ export const SECTIONS = [
   {
     id: 'overall', title: 'Your overall impression', intro: 'Thinking about all four tasks.',
     questions: [
-      { id: 'explain', type: 'text', voice: true, required: true, minLen: 10, maxLen: 800, label: 'In one or two sentences, explain to a friend what this system does.', help: 'This tells us if the idea comes across. Type or speak.' },
+      { id: 'explain', type: 'text', voice: true, required: true, minLen: 10, maxLen: 800, label: 'In one or two sentences, explain to a friend what this system does.', help: 'This tells us if the idea comes across.' },
       { id: 'umux1', type: 'scale', required: true, label: 'The features would meet what I need from a secure exam system.', scale: agree7 },
       { id: 'umux2', type: 'scale', required: true, label: 'The prototype is easy to use.', scale: agree7 },
       { id: 'trust_after', type: 'scale', required: true, label: 'A system like this would make me trust exam security more.', scale: agree5 },
       { id: 'accept_after', type: 'scale', required: true, label: 'How acceptable is printing the paper at the exam centre shortly before the exam?', scale: { min: 1, max: 5, minLabel: 'Not acceptable', maxLabel: 'Fully acceptable' } },
       { id: 'hardest', type: 'single', required: true, label: 'Which task was hardest to follow?', options: [
         { value: 't1', label: 'Task 1: A few leaks' }, { value: 't2', label: 'Task 2: The locked paper' }, { value: 't3', label: 'Task 3: A leaked photo' }, { value: 't4', label: 'Task 4: The activity log' }, { value: 'none', label: 'None of them' }] },
-      { id: 'change', type: 'text', voice: true, maxLen: 1500, label: 'What would you change first?', help: 'Anything: wording, layout, steps, features, or the idea itself. Optional, but this is the most useful thing you can tell us. Type or speak.' },
+      { id: 'change', type: 'text', voice: true, maxLen: 1500, label: 'What would you change first?', help: 'Anything: wording, layout, steps, features, or the idea itself. Optional, but this is the most useful thing you can tell us.' },
     ],
   },
   {
@@ -141,7 +141,7 @@ export const SECTIONS = [
         { value: 'know', label: 'They might not realise they have to do it' }, { value: 'understand', label: 'They might not understand what the screen asks' },
         { value: 'how', label: 'They might not know how to do it' }, { value: 'motivated', label: 'They might not be motivated to follow every step' },
         { value: 'capable', label: 'They might not be able to (device, power, time)' }, { value: 'skip', label: 'They might skip steps under pressure' }] },
-      { id: 'missing', type: 'text', voice: true, maxLen: 1500, label: 'What is missing? What would you add or remove?', help: 'Optional. Type or speak.' },
+      { id: 'missing', type: 'text', voice: true, maxLen: 1500, label: 'What is missing? What would you add or remove?', help: 'Optional.' },
     ],
   },
   {
@@ -171,7 +171,7 @@ export const INTERVIEW = {
     { id: 'c_mode', type: 'single', required: true, label: 'How would you like to talk?', options: MODES },
     { id: 'c_contact', type: 'text', maxLen: 200, required: true, minLen: 5, label: 'How can we reach you?', help: 'Email, phone or WhatsApp number. Used only to arrange the call.' },
     { id: 'c_name', type: 'text', maxLen: 120, label: 'Your name (optional)', help: 'So we know who to expect.' },
-    { id: 'c_topic', type: 'text', voice: true, maxLen: 800, label: 'Anything you would like to talk about? (optional)', help: 'For example: you set exam papers, you run an exam centre, or you took one of the exams that leaked. Type or speak.' },
+    { id: 'c_topic', type: 'text', voice: true, maxLen: 800, label: 'Anything you would like to talk about? (optional)', help: 'For example: you set exam papers, you run an exam centre, or you took one of the exams that leaked.' },
   ],
 };
 export const TASK_IDS = ['t1', 't2', 't3', 't4'];

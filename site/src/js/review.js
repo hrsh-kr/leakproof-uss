@@ -1,4 +1,4 @@
-// The remote usability test: step-by-step flow, task timing, voice or typed answers, interview call-to-action, receipt.
+// The remote usability test: step-by-step flow, task timing, typed answers, interview call-to-action, receipt.
 import { SECTIONS, STUDY, flatten, visible, SLOTS } from './survey-def.mjs';
 import { SCENES } from './scenes.js';
 import { SAMPLES } from './paper.js';
@@ -52,7 +52,7 @@ export function startReview(root, opts = {}) {
     return { title: 'Help us test an idea', body: [
       h('div', { class: 'callout' }, h('strong', null, 'Thank you for helping.'), ' We are a team in Usable Security and Privacy at IIIT-Delhi. We are designing a way to stop exam papers leaking, and we want to find out what is unclear before we build the real tool.'),
       h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you will do'), list([`Try four small working prototypes, one task each, then answer a few questions. About ${STUDY.approxMinutes} minutes, on a phone or laptop.`, 'You are testing the design, not yourself. There are no wrong answers, and honest criticism helps most.'])),
-      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What we collect'), list(['Your answers, how long each task takes, and how many taps you make.', 'Optional: spoken comments turned into text by your browser. We keep only the text, never the audio.', 'No name unless you choose to add one at the end. Names and contact details are stored apart from your answers.', 'We use answers only for this course project and quote them without names.'])),
+      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What we collect'), list(['Your answers, how long each task takes, and how many taps you make.', 'No name unless you choose to add one at the end. Names and contact details are stored apart from your answers.', 'We use answers only for this course project and quote them without names.'])),
       h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you get'), list(['A participation receipt at the end. The course gives 1% for every five studies you take part in. Ask your TA how to log it.', 'You can stop at any time by closing the tab.'])),
       ...nodes], validate: () => W.missingIn(section('intro').questions), next: 'Start' };
   }
@@ -87,7 +87,7 @@ export function startReview(root, opts = {}) {
     }
     const card = h('div', { class: 'taskcard' }, h('dl', null,
       h('div', null, h('dt', null, 'Scenario'), h('dd', null, t.scenario)), h('div', null, h('dt', null, 'Your goal'), h('dd', null, t.goal)), h('div', null, h('dt', null, 'You are done when'), h('dd', null, t.end))));
-    const howTo = t.id === 't1' ? h('div', { class: 'callout' }, h('strong', null, 'How each task works. '), 'Read the scenario, goal and end line. Try the prototype; about two minutes is plenty. Press "I\'m done" when you meet the end line, or "I\'m stuck, skip" if you cannot. Then answer a few short questions. You can speak your answers instead of typing.') : null;
+    const howTo = t.id === 't1' ? h('div', { class: 'callout' }, h('strong', null, 'How each task works. '), 'Read the scenario, goal and end line. Try the prototype; about two minutes is plenty. Press "I\'m done" when you meet the end line, or "I\'m stuck, skip" if you cannot. Then answer a few short questions.') : null;
     return { title: t.title, body: [howTo, card, stage, controls, overNote, post], validate: () => {
       if (!state.metrics[t.id]) return [{ label: 'Press "I\'m done" or "I\'m stuck, skip" first' }];
       return W.missingIn(t.post);

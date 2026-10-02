@@ -7,7 +7,9 @@ import { JSDOM } from 'jsdom';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export function setupDom(page = 'index', { hash = '', speech = null, reducedMotion = false, io = false } = {}) {
-  const html = fs.readFileSync(path.join(ROOT, 'public', page + '.html'), 'utf8');
+  const file = path.join(ROOT, 'public', page + '.html');
+  if (!fs.existsSync(file)) throw new Error('public/' + page + '.html is missing: run `npm test` (it builds first) or `npm run build`');
+  const html = fs.readFileSync(file, 'utf8');
   const dom = new JSDOM(html, { url: 'http://localhost/' + (page === 'index' ? '' : page) + hash, pretendToBeVisual: true, runScripts: 'outside-only' });
   const w = dom.window;
   // things jsdom does not implement
