@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{title}} · LeakProof</title>
+<meta name="description" content="{{desc}}">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="{{bodyclass}}">
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar">
+  <div class="bar-in">
+    <a class="brand" href="/">Leak<span>Proof</span></a>
+    <nav class="nav" aria-label="Main">{{nav}}</nav>
+    <a class="pill" href="/review"{{review_current}}>Review</a>
+  </div>
+</header>
+<main id="main">
+{{content}}
+</main>
+<footer class="foot">
+  <div class="foot-in">
+    <p><strong>LeakProof</strong> is a prototype for the Usable Security and Privacy course project at IIIT-Delhi (Monsoon 2026). All data on this site is simulated. No real exam content is used.</p>
+    <p><a href="/deliverables">Deliverables checklist</a> · <a href="/review">Review it</a> · <a href="/research">Research</a> · <a href="/requirements">Requirements</a></p>
+  </div>
+</footer>
+{{scripts}}
+</body>
+</html>

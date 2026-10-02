@@ -1,0 +1,3 @@
+date,decision_id,change,alternatives_considered,reason,evidence_ids,decided_by
+2026-10-02,D1-D16,Initial decision log created,see 02_final_scope_and_decisions.md,Baseline before studies,none (assumptions A1-A11),owner
+2026-10-02,D13,Permission test flagged auditor "Read log entries for a case" as an unscoped grant. Reviewed: subsumed by full-log read so no added power; added to reviewed list in tests,Remove the row; keep as is,Test-driven review of least privilege,R-P01 (privacy: minimise log detail seen by auditor) pending,owner

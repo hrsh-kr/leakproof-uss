@@ -1,0 +1,44 @@
+<!--title: Requirements-->
+<!--desc: Usability, security and privacy requirements, the threat model, assumptions and the decisions behind the design.-->
+<header class="scene hero"><div class="wrap">
+  <h1>Requirements.</h1>
+  <p class="lede">What the system must do, how we will know, and why we chose it. Every choice has options, pros and cons, and what would change our mind.</p>
+</div></header>
+
+<section class="scene alt left" id="requirements"><div class="wide">
+  <span class="eyebrow">Requirements</span>
+  <h2>What it must do</h2>
+  <p class="lede">These are hypotheses until a study supports them. A requirement becomes final when it has evidence and a test. Evidence comes from the <a href="/research">research</a> and the <a href="/review">review</a>.</p>
+  {{gen:requirements}}
+</div></section>
+
+<section class="scene left" id="threats"><div class="wide">
+  <span class="eyebrow">Threat model</span>
+  <h2>What could go wrong, and what we do about it</h2>
+  <p class="lede">24 threats across the pipeline. Each has a control, whether it prevents, limits or detects, what remains, and the test that tries to break it.</p>
+  {{gen:threats}}
+  <h3 style="margin-top:12px">Limits we state openly</h3>
+  {{gen:limits}}
+</div></section>
+
+<section class="scene alt left" id="assumptions"><div class="wide">
+  <span class="eyebrow">Assumptions</span>
+  <h2>What we chose to believe so we could build</h2>
+  <p class="lede">Each says what breaks if it is false and how we check it.</p>
+  {{gen:assumptions}}
+</div></section>
+
+<section class="scene left" id="decisions"><div class="wide">
+  <span class="eyebrow">Decisions</span>
+  <h2>Every choice, with its alternatives</h2>
+  <p class="lede">The course has no single right answer, so each decision shows the options we looked at, their pros and cons, our choice and why, and what would change our mind. Open one to read it.</p>
+  <div style="width:100%">{{gen:decisions}}</div>
+</div></section>
+
+<section class="scene alt left" id="scope"><div class="wide">
+  <span class="eyebrow">Scope</span>
+  <h2>What we will build, and what we will not</h2>
+  {{gen:scope}}
+  <h3 style="margin-top:12px">Questions the studies must answer</h3>
+  {{gen:rqs}}
+</div></section>

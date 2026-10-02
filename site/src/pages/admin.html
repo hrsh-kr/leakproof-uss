@@ -1,0 +1,14 @@
+<!--title: Admin-->
+<!--desc: Team only.-->
+<!--js: admin-->
+<div class="admin-box">
+  <h1 style="font-size:2rem">Admin</h1>
+  <p class="muted">Team only. Enter the admin key to see responses. The key is kept in this tab only.</p>
+  <form id="admin-form" class="cta" style="justify-content:flex-start">
+    <label class="sr" for="admin-key" style="position:absolute;left:-9999px">Admin key</label>
+    <input id="admin-key" class="rv-input" type="password" autocomplete="off" placeholder="Admin key" style="max-width:320px">
+    <button class="btn" type="submit">Load</button>
+  </form>
+  <p id="admin-msg" class="rv-err" role="alert"></p>
+  <div id="admin-out"></div>
+</div>

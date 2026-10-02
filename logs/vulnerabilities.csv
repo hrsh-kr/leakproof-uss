@@ -1,0 +1,2 @@
+vuln_id,date,found_by,stage,class,description,cause,fix,lesson,test_id
+"V-001",2026-10-02,own test,Print / copy ID,Weak integrity check,"Copy ID check digit depended only on the last digit of the seat number so C101-0 passed as valid for C001-0","First draft used (seat*7+3) mod 10; multiples of 10 vanish","Weighted digit sum with weights 3,7,1 (coprime to 10)","Test every single-digit change exhaustively; a check that looks fine on a few examples can ignore whole positions","tests/logic.test.mjs: copy ID check digit"

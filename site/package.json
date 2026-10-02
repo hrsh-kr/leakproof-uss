@@ -1,0 +1,13 @@
+{
+  "name": "leakproof-site",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "LeakProof: Phase I website (prototypes, workflows, research, requirements, and a remote usability test)",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && node scripts/dev.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": { "node": ">=20" }
+}

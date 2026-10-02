@@ -1,0 +1,1076 @@
+{
+  "roles": [
+    "anon",
+    "setter",
+    "reviewer",
+    "admin",
+    "custodian",
+    "centre",
+    "investigator",
+    "auditor"
+  ],
+  "actions": {
+    "Log in, log out": {
+      "anon": {
+        "allow": true,
+        "scopes": []
+      },
+      "setter": {
+        "allow": true,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": true,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": true,
+        "scopes": []
+      },
+      "centre": {
+        "allow": true,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": true,
+        "scopes": []
+      }
+    },
+    "Read public log head hash": {
+      "anon": {
+        "allow": true,
+        "scopes": []
+      },
+      "setter": {
+        "allow": true,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": true,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": true,
+        "scopes": []
+      },
+      "centre": {
+        "allow": true,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": true,
+        "scopes": []
+      }
+    },
+    "Submit question": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": true,
+        "scopes": [
+          "S1",
+          "S4"
+        ]
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Read own question content": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": true,
+        "scopes": [
+          "S1",
+          "S4"
+        ]
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Read another person's question": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": true,
+        "scopes": [
+          "S2"
+        ]
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Submit a review": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": true,
+        "scopes": [
+          "S2"
+        ]
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Create or edit exam profile and blueprint": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Assign setters and reviewers": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Lock the pool": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Start a draw": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "See balance report (counts only)": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": true,
+        "scopes": []
+      }
+    },
+    "Read any question text in bulk": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Read the drawn paper in plaintext": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Start sealing ceremony": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Approve sealing (signature)": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": true,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Provide a key share at release": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": true,
+        "scopes": [
+          "S4"
+        ]
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Request release for a centre": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": true,
+        "scopes": [
+          "S3",
+          "S4"
+        ]
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Submit seating report": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": true,
+        "scopes": [
+          "S3"
+        ]
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Print a copy": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": true,
+        "scopes": [
+          "S3",
+          "S4"
+        ]
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "View candidate seat list": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": true,
+        "scopes": [
+          "S3"
+        ]
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": [
+          "S5"
+        ]
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Read full audit log": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": true,
+        "scopes": []
+      }
+    },
+    "Read log entries for a case": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": [
+          "S5"
+        ]
+      },
+      "auditor": {
+        "allow": true,
+        "scopes": []
+      }
+    },
+    "Verify the audit chain": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": true,
+        "scopes": []
+      }
+    },
+    "Write or delete audit entries directly": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Upload leak evidence, run matcher": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": [
+          "S5"
+        ]
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "View suspect list": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": [
+          "S5"
+        ]
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Confirm or dismiss a suspect": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": true,
+        "scopes": [
+          "S5"
+        ]
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Respond to a case naming me": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": true,
+        "scopes": [
+          "S1"
+        ]
+      },
+      "reviewer": {
+        "allow": true,
+        "scopes": [
+          "S1"
+        ]
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": true,
+        "scopes": [
+          "S1"
+        ]
+      },
+      "centre": {
+        "allow": true,
+        "scopes": [
+          "S1"
+        ]
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Create users, assign roles": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": true,
+        "scopes": [
+          "S6"
+        ]
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    },
+    "Delete any record": {
+      "anon": {
+        "allow": false,
+        "scopes": []
+      },
+      "setter": {
+        "allow": false,
+        "scopes": []
+      },
+      "reviewer": {
+        "allow": false,
+        "scopes": []
+      },
+      "admin": {
+        "allow": false,
+        "scopes": []
+      },
+      "custodian": {
+        "allow": false,
+        "scopes": []
+      },
+      "centre": {
+        "allow": false,
+        "scopes": []
+      },
+      "investigator": {
+        "allow": false,
+        "scopes": []
+      },
+      "auditor": {
+        "allow": false,
+        "scopes": []
+      }
+    }
+  }
+}
