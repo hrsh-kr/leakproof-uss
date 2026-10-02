@@ -46,7 +46,7 @@ test('the review shows plain text boxes with no microphone, even where the brows
 test('the interview request and the quick comment box have no microphone either', () => {
   setupDom('interview', { speech: Rec });
   startInterview(document.getElementById('interview-root'), { post: async () => ({ ok: true, data: {} }) });
-  assert.ok(q('c_topic').querySelector('textarea'));
+  assert.ok(q('c_when').querySelector('textarea,input'), 'the chat form still has its fields');
   assert.equal(document.querySelectorAll('.mic').length, 0);
   assert.ok(!WORDS.test(document.body.textContent));
   setupDom('index', { speech: Rec });

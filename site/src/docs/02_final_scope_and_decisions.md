@@ -169,6 +169,12 @@ Questions must be decrypted once so a paper can be sealed. Options:
 - **Required for classmates, optional for everyone else.** Pros: matches the course; no fake links; the ask comes on the last page, after the person has already been helped by our study (the favour is asked after the value is given). Cons: it relies on people picking their own role honestly; we cannot verify it.
 - **Choice: required when the person says they are a student in this course, optional otherwise.** The link must be a plain web link (https or http, no username or password, no scripts). The admin view makes it clickable only when it is a web link. Assumption: classmates will have a study link by the time they answer. Revisit if: classmates say they have nothing to share yet. Then allow "coming soon" and ask again later.
 
+### D20. Asking for a chat: a separate, minimal form (added 2 Oct)
+- **A time-slot picker inside the review** (what we had first). Pros: one trip for the person. Cons: we had to invent slots and call channels in advance; the review got longer; people who only want to talk still met the review.
+- **A scheduling tool** (Calendly, Cal.com, Google Calendar booking). Pros: no back and forth. Cons: another account and third-party script (the site has none); we would have to publish real availability; free-plan limits not verified.
+- **A separate minimal form on our own site: a consent box, when you are free in your own words, how to reach you, an optional name.** Pros: nothing for us to invent; short; people who only want to talk skip the review; the Send button stays off until the consent box is ticked and the server also refuses without it; the consent is stored with the request. Cons: we arrange the time by message, which costs one round of replies.
+- **Choice: the separate minimal form; the review's receipt page points to it. We capture what people write and arrange the rest ourselves.** Revisit if: requests pile up and the replies become slow. Then use a scheduling tool.
+
 ## 5. What we do not know yet (research questions)
 
 Each question can change a decision. The studies in `03_phase1_plan_oct4.md` are designed to answer them.

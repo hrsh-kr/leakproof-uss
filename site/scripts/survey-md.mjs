@@ -1,8 +1,10 @@
 // Prints the review's questions as a markdown table, straight from the survey definition.
-import { SECTIONS, flatten } from '../src/js/survey-def.mjs';
+// `node scripts/survey-md.mjs interview` prints the chat form's questions instead.
+import { SECTIONS, INTERVIEW, flatten } from '../src/js/survey-def.mjs';
 import { FEATURES } from '../src/js/config.mjs';
 const rows = [];
-for (const sec of SECTIONS) {
+const sections = process.argv[2] === 'interview' ? [{ title: INTERVIEW.title, questions: INTERVIEW.questions }] : SECTIONS;
+for (const sec of sections) {
   const qs = [];
   for (const q of sec.questions) {
     if (q.type === 'task') { qs.push(q); q.post.forEach((p) => qs.push(p)); }

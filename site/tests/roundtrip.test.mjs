@@ -17,7 +17,7 @@ test.after(() => emu.close());
 const { default: submit } = await import('../api/submit.js');
 const { default: stats } = await import('../api/stats.js');
 const { default: exportApi } = await import('../api/export.js');
-const { SECTIONS, INTERVIEW, QUICK_SCENES, CONTACT_IDS, flatten, visible, requiredNow, SLOTS, MODES } = await import('../src/js/survey-def.mjs');
+const { SECTIONS, INTERVIEW, QUICK_SCENES, CONTACT_IDS, flatten, visible, requiredNow } = await import('../src/js/survey-def.mjs');
 const { startReview } = await import('../src/js/review.js');
 const { startInterview } = await import('../src/js/interview.js');
 const { mountQuick } = await import('../src/js/quick.js');
@@ -41,7 +41,7 @@ const allContact = async () => (await admin({ include: 'contact' })).contact;
 
 /* The fields that identify a person. Written out here on purpose, apart from the code under test:
    adding or removing one must be a decision, not an accident. */
-const CONTACT = ['email', 'c_link', 'c_contact', 'c_name', 'c_slots', 'c_when', 'c_mode', 'c_topic'];
+const CONTACT = ['email', 'c_link', 'c_name', 'c_contact', 'c_when'];
 test('the set of fields kept apart from the analysis data is exactly the one we decided on', () => {
   assert.deepEqual([...CONTACT_IDS].sort(), [...CONTACT].sort());
 });
@@ -55,9 +55,9 @@ const inDom = (id) => document.querySelector(`[data-q="${id}"]`);
 const live = (el) => el && !el.hidden && !el.closest('[hidden]');
 
 /** What to do for each question in a given run. `expected` collects what the person actually entered. */
-function makeRun(name, { role, fillOptional, stuck, followup, optionalPart, link, pad = true }) {
+function makeRun(name, { role, fillOptional, stuck, optionalPart, link, pad = true }) {
   const expected = {}; const ordinal = hash(name);
-  const forced = { role, followup, email: `  Asha.Kumar+${name}@Example.COM `, c_link: link ? ` https://Forms.GLE/Dry-Run-${name}?x=1&y=2 ` : undefined };
+  const forced = { role, email: `  Asha.Kumar+${name}@Example.COM `, c_link: link ? ` https://Forms.GLE/Dry-Run-${name}?x=1&y=2 ` : undefined };
   for (const t of ['t1', 't2', 't3', 't4']) forced[`${t}_stuck`] = stuck;
   const pick = (q) => {
     if (q.id in forced) return forced[q.id];
@@ -158,9 +158,9 @@ const byReceipt = async (receipt) => {
 };
 
 const RUNS = [
-  makeRun('A', { role: 'course_peer', fillOptional: true, stuck: 'yes', followup: 'yes', optionalPart: true, link: true }),
-  makeRun('B', { role: 'other_student', fillOptional: false, stuck: 'no', followup: 'no', optionalPart: false, link: false }),
-  makeRun('C', { role: 'exam_staff', fillOptional: false, stuck: 'yes', followup: undefined, optionalPart: true, link: true }),
+  makeRun('A', { role: 'course_peer', fillOptional: true, stuck: 'yes', optionalPart: true, link: true }),
+  makeRun('B', { role: 'other_student', fillOptional: false, stuck: 'no', optionalPart: false, link: false }),
+  makeRun('C', { role: 'exam_staff', fillOptional: false, stuck: 'yes', optionalPart: true, link: true }),
 ];
 
 for (const run of RUNS) {
@@ -213,7 +213,8 @@ test('dry run: every question in the survey was exercised by at least one run', 
   const missing = reviewQs.map((q) => q.id).filter((id) => !seen.has(id));
   assert.deepEqual(missing, [], 'questions no dry run filled: ' + missing.join(', '));
   // the survey really has the fields we care about
-  for (const id of ['email', 'c_link', 'role', 'followup', 'c_slots', 'c_mode', 'c_contact', 'c_name', 'c_when', 'consent', 'explain', 'change', 'missing', 'd_pool_why']) assert.ok(seen.has(id), id);
+  for (const id of ['email', 'c_link', 'role', 'c_name', 'consent', 'explain', 'change', 'missing', 'd_pool_why']) assert.ok(seen.has(id), id);
+  for (const id of ['followup', 'c_slots', 'c_mode', 'c_contact', 'c_when', 'c_topic']) assert.ok(!seen.has(id) && !reviewQs.some((q) => q.id === id), id + ' is not part of the review any more');
 });
 
 test('dry run: the participants view and CSV tie every review to its email, and the analysis export has no emails', async () => {
@@ -227,10 +228,8 @@ test('dry run: the participants view and CSV tie every review to its email, and 
     assert.equal(p.timesSeen, 1);
     assert.equal(p.completedTasks, run.fillOptional ? 2 : 3);
     assert.equal(p.name, run.expected.c_name || '');
-    if (run.expected.c_slots) assert.deepEqual(p.slots, run.expected.c_slots.map((v) => SLOTS.find((s) => s.value === v).label));
-    if (run.expected.c_mode) assert.equal(p.mode, MODES.find((m) => m.value === run.expected.c_mode).label);
   }
-  const FREE = ['email', 'c_link', 'c_contact', 'c_name', 'c_when'];
+  const FREE = ['email', 'c_link', 'c_name'];
   const analysis = JSON.stringify(exp.reviews);
   for (const run of RUNS) for (const id of FREE) if (run.expected[id]) assert.ok(!analysis.includes(String(run.expected[id])), `${id} leaked into the analysis export`);
   const csvAnalysis = await call(exportApi, { method: 'GET', headers: { 'x-admin-key': 'roundtrip-admin-key' }, query: { format: 'csv' } });
@@ -242,19 +241,22 @@ test('dry run: the participants view and CSV tie every review to its email, and 
   for (const run of RUNS) for (const id of FREE) if (run.expected[id]) assert.ok(!pub.includes(String(run.expected[id])), `${id} leaked into public stats`);
 });
 
-/* ---------- the interview request and the quick feedback box ---------- */
+/* ---------- the chat form and the quick feedback box ---------- */
+const sendButton = () => document.querySelector('.rv-nav .btn');
 async function fillInterview(fillOptional) {
   setupDom('interview');
   const root = document.getElementById('interview-root');
   startInterview(root, {});
-  const run = makeRun('I' + (fillOptional ? 'full' : 'min'), { role: undefined, fillOptional, stuck: 'no', followup: 'yes', optionalPart: false, link: false });
+  const run = makeRun('I' + (fillOptional ? 'full' : 'min'), { role: undefined, fillOptional, stuck: 'no', optionalPart: false, link: false });
   const answered = new Set();
+  assert.equal(sendButton().disabled, true, 'the button is off until the consent box is ticked');
   fillVisible(INTERVIEW.questions, run, answered);
-  click(root.querySelector('.rv-nav .btn')); await waitFor(() => document.querySelector('.receipt dd.mono') || /wrong|check|reach|connected/i.test(document.querySelector('.rv-err')?.textContent || ''));
+  assert.equal(sendButton().disabled, false);
+  click(sendButton()); await waitFor(() => document.querySelector('.receipt dd.mono') || /wrong|check|reach|connected/i.test(document.querySelector('.rv-err')?.textContent || ''));
   return run;
 }
 for (const full of [true, false]) {
-  test(`dry run: interview request (${full ? 'every field' : 'required only'}) is stored with exactly what was entered`, async () => {
+  test(`dry run: chat form (${full ? 'every field' : 'required only'}) is stored with exactly what was entered, and the consent`, async () => {
     const before = (await allContact()).length;
     const run = await fillInterview(full);
     const receiptEl = document.querySelector('.receipt dd.mono');
@@ -262,14 +264,31 @@ for (const full of [true, false]) {
     const stored = (await allContact()).find((c) => c.receipt === receiptEl.textContent);
     assert.ok(stored); assert.equal((await allContact()).length, before + 1);
     assert.equal(stored.source, 'interview');
-    const { consent, ...want } = run.expected;
-    assert.ok(consent === true);
-    assert.deepEqual(Object.fromEntries(Object.entries(stored).filter(([k]) => !['id', 'receipt', 'receivedAt', 'source'].includes(k))), want);
+    assert.equal(stored.consent, true, 'the consent is stored with the request');
+    assert.deepEqual(Object.fromEntries(Object.entries(stored).filter(([k]) => !['id', 'receipt', 'receivedAt', 'source'].includes(k))), run.expected);
     if (full) for (const q of INTERVIEW.questions.filter((x) => x.type === 'text')) assert.equal(stored[q.id].length, q.maxLen, `${q.id} kept its full length`);
-    else assert.deepEqual(Object.keys(stored).filter((k) => !['id', 'receipt', 'receivedAt', 'source'].includes(k)).sort(), ['c_contact', 'c_mode', 'c_slots']);
-    assert.ok(!(await admin()).reviews.some((r) => r.receipt === stored.receipt), 'an interview request is not an analysis record');
+    else assert.deepEqual(Object.keys(stored).filter((k) => !['id', 'receipt', 'receivedAt', 'source'].includes(k)).sort(), ['c_contact', 'c_when', 'consent']);
+    assert.ok(!(await admin()).reviews.some((r) => r.receipt === stored.receipt), 'a chat request is not an analysis record');
   });
 }
+
+test('dry run: without the consent box ticked, the chat form sends and stores nothing, however it is pressed', async () => {
+  const before = (await allContact()).length, sentBefore = wire.sent.length;
+  setupDom('interview');
+  const root = document.getElementById('interview-root');
+  startInterview(root, {});
+  type(inDom('c_when').querySelector('textarea,input'), 'any evening'); type(inDom('c_contact').querySelector('textarea,input'), 'someone@example.com');
+  assert.equal(sendButton().disabled, true);
+  click(sendButton()); sendButton().disabled = false; click(sendButton()); // pressed while off, and forced on
+  await tick(80);
+  assert.equal(wire.sent.length, sentBefore, 'nothing left the page');
+  assert.match(document.querySelector('.rv-err').textContent, /tick the box/i);
+  assert.equal((await allContact()).length, before, 'nothing was stored');
+  // and the server refuses it too, if someone bypasses the page
+  const forged = await call(submit, { method: 'POST', body: { kind: 'interview', clientId: cid(), answers: { c_when: 'any evening', c_contact: 'someone@example.com' } } });
+  assert.equal(forged.statusCode, 400);
+  assert.equal((await allContact()).length, before);
+});
 
 test('dry run: quick feedback for every scene, with and without a comment, is stored exactly', async () => {
   const sent = [];
@@ -296,8 +315,6 @@ function withAnswer(q, v) {
   const a = { ...validReview().answers };
   if (q.showIf) a[q.showIf.id] = q.showIf.equals;
   a[q.id] = v;
-  if (a.followup === 'yes') { a.c_slots ??= ['sat3-am']; a.c_mode ??= 'meet'; a.c_contact ??= 'someone@example.com'; }
-  else for (const id of ['c_slots', 'c_mode', 'c_contact', 'c_when']) if (id !== q.id) delete a[id];
   return { ...validReview(), answers: a, clientId: cid() };
 }
 const send = (body) => call(submit, { method: 'POST', body });

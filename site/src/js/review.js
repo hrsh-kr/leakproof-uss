@@ -1,5 +1,5 @@
-// The remote usability test: step-by-step flow, task timing, typed answers, interview call-to-action, receipt.
-import { SECTIONS, STUDY, flatten, visible, SLOTS } from './survey-def.mjs';
+// The remote usability test: step-by-step flow, task timing, typed answers, swap link, receipt (with a pointer to the chat form).
+import { SECTIONS, STUDY, flatten, visible } from './survey-def.mjs';
 import { SCENES } from './scenes.js';
 import { SAMPLES } from './paper.js';
 import { createWidgets } from './widgets.js';
@@ -54,7 +54,7 @@ export function startReview(root, opts = {}) {
       h('div', { class: 'callout' }, h('strong', null, 'Thank you for helping.'), ' We are a team in Usable Security and Privacy at IIIT-Delhi. We are designing a way to stop exam papers leaking, and we want to find out what is unclear before we build the real tool.'),
       h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you will do'), list([`Try four small working prototypes, one task each, then answer a few questions. About ${STUDY.approxMinutes} minutes, on a phone or laptop.`, 'You are testing the design, not yourself. There are no wrong answers, and honest criticism helps most.'])),
       h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What we collect'), list(['Your answers, how long each task takes, and how many taps you make.', 'Your email, so we can confirm you took part and match your answers to you. It is stored apart from your answers, never shown publicly and not used in any report. A name is optional.', 'We use answers only for this course project and quote them without names.'])),
-      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you get'), list(['A participation receipt at the end. The course gives 1% for every five studies you take part in. Ask your TA how to log it.', 'If you are in this course, a swap: you share your own study link and we take part in yours.', 'You can stop at any time by closing the tab.'])),
+      h('div', { class: 'q' }, h('div', { class: 'ql' }, 'What you get'), list(['A participation receipt at the end. The course gives 1% for every five studies you take part in. We keep your email and receipt code so your participation can be confirmed.', 'If you are in this course, a swap: you share your own study link and we take part in yours.', 'You can stop at any time by closing the tab.'])),
       ...nodes], validate: () => W.missingIn(section('intro').questions), next: 'Start' };
   }
   function taskPage(t) {
@@ -144,8 +144,7 @@ export function startReview(root, opts = {}) {
     const payload = buildPayload();
     const r = await (opts.post || postJson)('/api/submit', payload);
     if (r.ok) {
-      const slots = (state.answers.c_slots || []).map((v) => (SLOTS.find((s) => s.value === v) || {}).label).filter(Boolean);
-      state.receipt = { code: r.data.receipt, at: new Date().toISOString(), seconds: payload.totalSeconds, interview: state.answers.followup === 'yes', slots, who: maskEmail(state.answers.email || ''), swap: state.answers.c_link || '' };
+      state.receipt = { code: r.data.receipt, at: new Date().toISOString(), seconds: payload.totalSeconds, who: maskEmail(state.answers.email || ''), swap: state.answers.c_link || '' };
       save(); renderReceipt(); return;
     }
     btn.disabled = false;
@@ -167,11 +166,11 @@ export function startReview(root, opts = {}) {
     fill(shell, [h('div', { class: 'rv-step' }, h('h2', { tabindex: '-1', id: 'rv-h' }, 'Thank you. You are done.'),
       h('p', { class: 'rv-intro' }, 'Your answers are saved. Here is your participation receipt.'),
       r.swap ? h('div', { class: 'callout' }, h('strong', null, 'Swap. '), 'We will take part in your study: ', FORMATS.url.check(r.swap) ? h('a', { href: r.swap, target: '_blank', rel: 'noopener noreferrer' }, r.swap) : r.swap) : null,
-      r.interview ? h('div', { class: 'callout' }, h('strong', null, 'Your call. '), `We will message you to confirm one of the times you picked${r.slots && r.slots.length ? ': ' + r.slots.join('; ') : ''}.`) : null,
+      h('div', { class: 'callout' }, h('strong', null, 'Happy to talk? '), 'A 20 to 30 minute call helps us more than any form. ', h('a', { href: '/interview' }, 'Tell us when you are free'), '.'),
       h('div', { class: 'receipt' }, h('dl', null, h('dt', null, 'Study'), h('dd', null, STUDY.title), h('dt', null, 'Team'), h('dd', null, STUDY.team), h('dt', null, 'Participant'), h('dd', null, r.who || 'not given'), h('dt', null, 'Date'), h('dd', null, when.toLocaleString()),
         h('dt', null, 'Time taken'), h('dd', null, `About ${mins(r.seconds)}`), h('dt', null, 'Receipt code'), h('dd', { class: 'mono', style: 'font-size:1.1rem' }, r.code))),
       h('div', { class: 'cta', style: 'justify-content:flex-start' }, copyBtn),
-      h('p', { class: 'fineprint' }, 'Take a screenshot or copy the receipt. The course gives 1% for every five studies you take part in. Ask your TA how to log it. If you added your name, we can confirm your participation if asked.'),
+      h('p', { class: 'fineprint' }, 'Take a screenshot or copy the receipt. The course gives 1% for every five studies you take part in. We keep your email and this receipt code so your participation can be confirmed.'),
       h('div', { class: 'callout' }, 'Want to see what changed because of your feedback? The ', h('a', { href: '/course#results' }, 'results'), ' update as responses come in.'))]);
     const hh = $('#rv-h'); if (hh) hh.focus({ preventScroll: true });
   }

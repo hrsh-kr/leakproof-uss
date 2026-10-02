@@ -46,9 +46,9 @@ Poster (Oct 6, session Oct 7) reuses D2, D4, D6, D10 (design themes) and D11.
 4. Severity ratings (0 to 4) are added to critical incidents (outside practice).
 5. We still need **live sessions** (5 watched think-aloud sessions) for depth. The website is the stimulus for those sessions too.
 
-## 4. Open questions for the TA
+## 4. Questions for the TA, and where they stand (2 Oct)
 
-1. How is participation in other groups' studies verified for credit? (We provide a receipt with date, group, study title, duration and a code.)
-2. Does Phase I need a separate proposal or ethics application (Lecture 1 mentions both)?
-3. Is a website acceptable as the Phase I submission, alongside a PDF?
-4. Is a team of four fine (Lecture 1 says five)?
+1. **How is participation in other groups' studies verified for credit?** Settled: we confirm it from the email and receipt code in our own form responses.
+2. **Does Phase I need a separate proposal or ethics application?** Settled: no separate ethics application. The consent line on the first screen and the consent box on the chat form are what we use.
+3. **Is a website acceptable as the Phase I submission, alongside a PDF?** To decide: what exactly we submit is decided later.
+4. **Is a team of four fine (Lecture 1 says five)?** Still open.

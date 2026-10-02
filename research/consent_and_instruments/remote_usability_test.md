@@ -14,7 +14,7 @@ The first screen says, in plain words:
 - **What you will do:** four small working prototypes, one task each, then a few questions; about 12 to 15 minutes; phone or laptop.
 - **That we test the design, not them.** No wrong answers; honest criticism helps most.
 - **What we collect:** answers, task times, tap counts, and an **email** (required, so we can match each review to a person for credit and follow-ups); a name is optional. Email, name and contact details are stored apart from the answers and are not used in any report; answers are used only for the course project and quoted without names. See D18.
-- **What they get:** a participation receipt (showing a masked email), and how it counts (1% per five studies; ask the TA how to log it).
+- **What they get:** a participation receipt (showing a masked email), and how it counts (1% per five studies; we confirm it from the email and receipt code in our form responses).
 - **A swap for classmates:** on the last page, students in this course share the link to their own study and we take part in it. Required for them, optional for everyone else. See D19.
 - A consent checkbox they must tick to start.
 
@@ -41,7 +41,7 @@ From Lecture 3 and outside practice for unmoderated tests:
 | Overall impression | 2 min | Explain-it-back, 2-item usability score, trust and acceptance again, hardest task, what to change first | Lecture 1 satisfaction metric; RQ6 |
 | Optional: design choices | 2 min | Agree, unsure or disagree on five decisions, with why | Decision log D1 to D17; course style "justify choices" |
 | Optional: think like the operator | 2 min | Where a person running it might fail (Lecture 1 six questions), what is missing | Human in the loop (Lecture 1), RQ2 |
-| Finish | 1 min | **Interview call-to-action:** yes or no; if yes, which time slots (IST), how to talk, and how to reach them; optional name for credit; then the receipt | Participation credit; interviews (studies B to E) |
+| Finish | 1 min | **Swap link** (required for classmates, optional for others; D19); optional name; then the receipt, which points to the separate chat form | Participation credit; reciprocity |
 
 ## 5. What we measure, and how we judge it
 
@@ -63,7 +63,7 @@ Public results show numbers only when 5 or more people contribute. Free text is 
 
 ## 6. Privacy and ethics
 
-Data minimisation (email is the one required identifier, to tie reviews to people; name optional); email, name, swap link and contact stored separately from the answers and joined only by receipt code in the team-only admin view; the receipt shows a masked email; group results hidden under 5 people; no third-party scripts or trackers; storage in a private database; admin export protected by a key; deletion of raw data after the final report. Ask the TA whether a consent sheet is enough or ethics approval is needed.
+Data minimisation (email is the one required identifier, to tie reviews to people; name optional); email, name, swap link and contact stored separately from the answers and joined only by receipt code in the team-only admin view; the receipt shows a masked email; group results hidden under 5 people; no third-party scripts or trackers; storage in a private database; admin export protected by a key; deletion of raw data after the final report. No separate ethics application is needed (decided 2 Oct); the consent line on the first screen and the consent box on the chat form are what we use.
 
 ## 7. Pilot before sharing widely
 
@@ -132,9 +132,15 @@ Data minimisation (email is the one required identifier, to tie reviews to peopl
 | Think like the person running it | `hitl` | multi | no | Where might things go wrong for that person? Pick up to two. | They might not realise they have to do it / They might not understand what the screen asks / They might not know how to do it / They might not be motivated to follow every step / They might not be able to (device, power, time) / They might skip steps under pressure |
 | Think like the person running it | `missing` | text | no | What is missing? What would you add or remove? |  |
 | One last thing | `c_link` | text | if role = course_peer | Your own study or survey link |  |
-| One last thing | `followup` | single | no | Would you be up for a short follow-up call (20 to 30 minutes)? | Yes, let us find a time / No, thank you |
-| One last thing | `c_slots` | multi | if followup = yes | When could you talk? Pick every slot that works. | Sat 3 Oct, 10 am to 1 pm / Sat 3 Oct, 2 pm to 5 pm / Sat 3 Oct, 6 pm to 9 pm / Sun 4 Oct, 10 am to 1 pm / Sun 4 Oct, 2 pm to 5 pm / Mon 5 Oct, 6 pm to 9 pm / Later in the week (I will say when below) |
-| One last thing | `c_when` | text | shown if followup = yes | Another time that suits you better? (optional) |  |
-| One last thing | `c_mode` | single | if followup = yes | How would you like to talk? | Video call (Google Meet) / Phone call / WhatsApp call / In person, on campus |
-| One last thing | `c_contact` | text | if followup = yes | How can we reach you? |  |
 | One last thing | `c_name` | text | no | Your name, if you want us to be able to confirm you took part. |  |
+
+### The chat form (`/interview`)
+
+Consent must be ticked before the Send button works; the server refuses without it and stores the consent with the request.
+
+| Section | Id | Type | Required | Question | Options or scale |
+| --- | --- | --- | --- | --- | --- |
+| Talk to us | `consent` | consent | yes | I agree to be contacted about a short call, and I know I can say no at any time. |  |
+| Talk to us | `c_when` | text | yes | When are you free to talk? |  |
+| Talk to us | `c_contact` | text | yes | How can we reach you? |  |
+| Talk to us | `c_name` | text | no | Your name (optional) |  |

@@ -104,7 +104,7 @@ export function validateInterview(body) {
   const r = checkAnswers(INTERVIEW_QS, body.answers);
   errors.push(...r.errors);
   if (errors.length) return { ok: false, errors };
-  delete r.clean.consent;
+  // consent is kept with the request: it proves the person ticked the box before we may contact them
   return { ok: true, errors: [], clean: { clientId: body.clientId, contact: r.clean } };
 }
 

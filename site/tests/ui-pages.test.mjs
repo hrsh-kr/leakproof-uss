@@ -61,7 +61,7 @@ test('review: a complete run with every optional part produces the right submiss
   assert.match(title(), /Task 3 of 4|Task 2 of 4/);
 });
 
-test('review: full submission contents (typed + voice), optional parts, follow-up call, receipt', async () => {
+test('review: full submission contents (typed + voice), optional parts, swap link, receipt', async () => {
   const calls = []; newReview(okPost(calls));
   await fillIntroAboutBefore();
   await doTask('t1', { act: () => type(document.querySelector('.task-stage input[type=range]'), '8'), check: 'a', stuck: 'yes' });
@@ -89,15 +89,11 @@ test('review: full submission contents (typed + voice), optional parts, follow-u
   await next(); assert.match(title(), /person running it/);
   check('hitl', ['skip', 'capable']); say('missing', 'A fallback for power cuts.'); await next();
   assert.match(title(), /One last thing/);
-  // follow-up: choosing yes reveals and requires the call details
-  assert.equal(q('c_slots').hidden, true);
+  // the last page: the swap link (and an optional name). No call questions here: those live in the separate chat form.
+  assert.deepEqual([...document.querySelectorAll('.rv-step [data-q]')].map((e) => e.dataset.q), ['c_link', 'c_name']);
   await next(); assert.match(err(), /Your own study or survey link/, 'classmates must share their own study link');
   say('c_link', 'forms.gle/no-scheme'); await next(); assert.match(err(), /Your own study or survey link.*link that starts with https/);
-  say('c_link', 'https://forms.gle/AsHa123');
-  radio('followup', 'yes');
-  assert.equal(q('c_slots').hidden, false); assert.equal(q('c_mode').hidden, false); assert.equal(q('c_contact').hidden, false);
-  await next(); assert.match(err(), /When could you talk/);
-  check('c_slots', ['sat3-pm', 'sun4-am']); radio('c_mode', 'whatsapp'); say('c_contact', '+91 98765 43210'); say('c_when', 'Thursday after 7 pm'); say('c_name', 'Asha');
+  say('c_link', 'https://forms.gle/AsHa123'); say('c_name', 'Asha');
   await next(); await tick(30);
   assert.equal(calls.length, 1);
   const { url, payload } = calls[0];
@@ -110,8 +106,8 @@ test('review: full submission contents (typed + voice), optional parts, follow-u
   assert.equal(payload.answers.t1_incident, 'I could not find the control.');
   assert.equal(payload.answers.t4_stuck, 'yes');
   assert.equal(payload.answers.d_print, 'disagree'); assert.equal(payload.answers.d_print_why, 'Small centres lack printers.');
-  assert.deepEqual(payload.answers.c_slots, ['sat3-pm', 'sun4-am']); assert.equal(payload.answers.c_mode, 'whatsapp');
-  assert.equal(payload.answers.c_contact, '+91 98765 43210'); assert.equal(payload.answers.c_name, 'Asha');
+  assert.equal(payload.answers.c_name, 'Asha');
+  assert.ok(!['followup', 'c_slots', 'c_mode', 'c_contact', 'c_when'].some((k) => k in payload.answers), 'a review carries no call request');
   assert.deepEqual(Object.keys(payload.metrics), ['t1', 't2', 't3', 't4']);
   assert.equal(payload.metrics.t4.result, 'skipped'); assert.equal(payload.metrics.t1.result, 'done');
   assert.ok(payload.metrics.t1.actions >= 1 && payload.metrics.t2.actions >= 3);
@@ -124,8 +120,10 @@ test('review: full submission contents (typed + voice), optional parts, follow-u
   assert.ok(!receipt.includes('asha@example.com'));
   assert.match(text(document.body), /Swap\. We will take part in your study: https:\/\/forms\.gle\/AsHa123/);
   assert.equal(document.querySelector('.callout a[href="https://forms.gle/AsHa123"]').getAttribute('rel'), 'noopener noreferrer');
-  assert.match(receipt, /LP-TEST1234/); assert.match(receipt, /Sat 3 Oct, 2 pm to 5 pm/.test(text(document.body)) ? /LeakProof remote usability test/ : /LeakProof/);
-  assert.match(text(document.body), /Your call\..*Sat 3 Oct, 2 pm to 5 pm; Sun 4 Oct, 10 am to 1 pm/);
+  assert.match(receipt, /LP-TEST1234/); assert.match(receipt, /LeakProof remote usability test/);
+  assert.equal(document.querySelector('.callout a[href="/interview"]').textContent, 'Tell us when you are free', 'the receipt points to the separate chat form');
+  assert.ok(!/Ask your TA/.test(text(document.body)), 'credit is confirmed by us, not by asking the TA');
+  assert.match(text(document.body), /confirmed/);
   assert.ok(document.querySelector('.receipt dd.mono'));
 });
 
@@ -174,15 +172,12 @@ test('review: choosing "No, finish now" skips the optional pages and submits wit
   await next();
   click([...document.querySelectorAll('.btn')].find((b) => /No, finish now/.test(b.textContent))); await tick(20);
   assert.match(title(), /One last thing/);
-  assert.equal(q('c_slots').hidden, true);
   say('c_link', 'https://forms.gle/AsHa123');
-  radio('followup', 'no');
   await next(); await tick(30);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].payload.optionalDone, false);
-  assert.ok(!('d_pool' in calls[0].payload.answers) && !('missing' in calls[0].payload.answers) && !('c_slots' in calls[0].payload.answers));
+  assert.ok(!('d_pool' in calls[0].payload.answers) && !('missing' in calls[0].payload.answers));
   assert.match(text(document.body), /Thank you. You are done/);
-  assert.ok(!/Your call\./.test(text(document.body)), 'no call message when they said no');
 });
 
 test('review: progress survives a refresh, and after submitting the receipt stays instead of resubmitting', async () => {
@@ -209,7 +204,6 @@ test('review: when the server cannot save, the person keeps their answers and ca
   await next();
   click([...document.querySelectorAll('.btn')].find((b) => /No, finish now/.test(b.textContent))); await tick(20);
   say('c_link', 'https://forms.gle/AsHa123');
-  radio('followup', 'no');
   await next(); await tick(20);
   assert.match(err(), /not connected to storage yet.*still in this tab/);
   assert.ok([...document.querySelectorAll('.rv-err .link-btn')].some((b) => /Copy my answers/.test(b.textContent)));
@@ -254,26 +248,35 @@ test('review: the task timer shows the guide time has passed after two minutes',
 });
 
 /* ---------------- interview request ---------------- */
-test('interview request: needs consent, a time, a way to talk and contact details, then confirms the chosen times', async () => {
+const sendBtn = () => [...document.querySelectorAll('.btn')].find((b) => /Send my request/.test(b.textContent));
+test('interview request: nothing can be sent without the consent box; then it needs when and how to reach, and confirms exactly what was typed', async () => {
   setupDom('interview', { speech: Rec });
   const calls = [];
   startInterview(document.getElementById('interview-root'), { post: okPost(calls) });
   assert.match(text(document.body), /20 to 30 minute call/);
-  click([...document.querySelectorAll('.btn')].find((b) => /Send my request/.test(b.textContent))); await tick(10);
-  assert.match(err(), /I agree to be contacted/); assert.match(err(), /When could you talk/);
+  assert.deepEqual([...document.querySelectorAll('[data-q]')].map((e) => e.dataset.q), ['consent', 'c_when', 'c_contact', 'c_name'], 'a minimal form: no slot picker, no channel picker');
+  // without consent: the button is off, the reason is shown, and even a forced click sends nothing
+  assert.equal(sendBtn().disabled, true); assert.match(text(document.body), /Tick the box above to send/);
+  say('c_when', 'Saturday after 6 pm'); say('c_contact', 'asha@example.com');
+  sendBtn().disabled = false; click(sendBtn()); await tick(20);
+  assert.equal(calls.length, 0, 'no request without consent'); assert.match(err(), /tick the box/i);
+  sendBtn().disabled = true;
   click(document.querySelector('#consent-box'));
-  check('c_slots', ['sat3-am', 'mon5-eve']); radio('c_mode', 'meet'); say('c_contact', 'asha@example.com'); say('c_name', 'Asha');
-  assert.ok(q('c_topic').querySelector('.mic'), 'the topic box accepts voice');
-  const mic = q('c_topic').querySelector('.mic'); click(mic); Rec.instances.at(-1).say([{ t: 'I set papers for a state board', final: true }]); click(mic);
-  click([...document.querySelectorAll('.btn')].find((b) => /Send my request/.test(b.textContent))); await tick(20);
+  assert.equal(sendBtn().disabled, false); assert.equal(document.querySelector('#iv-hint').hidden, true);
+  click(document.querySelector('#consent-box'));
+  assert.equal(sendBtn().disabled, true, 'unticking switches the button off again'); assert.equal(document.querySelector('#iv-hint').hidden, false);
+  click(document.querySelector('#consent-box'));
+  // required fields are still checked
+  say('c_when', ''); click(sendBtn()); await tick(10); assert.match(err(), /When are you free/); assert.equal(calls.length, 0);
+  say('c_when', '  Saturday after 6 pm, or any evening  '); say('c_name', 'Asha');
+  click(sendBtn()); await tick(20);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].payload.kind, 'interview');
-  assert.deepEqual(calls[0].payload.answers.c_slots, ['sat3-am', 'mon5-eve']);
-  assert.equal(calls[0].payload.answers.c_topic, 'I set papers for a state board');
-  assert.ok(!('role' in calls[0].payload.answers));
+  assert.deepEqual(calls[0].payload.answers, { consent: true, c_when: 'Saturday after 6 pm, or any evening', c_contact: 'asha@example.com', c_name: 'Asha' });
+  assert.equal(calls[0].payload.answers.consent, true); assert.equal(calls[0].payload.answers.c_when.trim(), 'Saturday after 6 pm, or any evening');
+  assert.ok(!('role' in calls[0].payload.answers) && !('c_slots' in calls[0].payload.answers));
   assert.match(text(document.body), /Thank you. We will be in touch/);
-  assert.match(text(document.body), /Sat 3 Oct, 10 am to 1 pm; Mon 5 Oct, 6 pm to 9 pm/);
-  assert.match(text(document.body), /Video call \(Google Meet\)/);
+  assert.match(text(document.body), /Saturday after 6 pm, or any evening/); assert.match(text(document.body), /asha@example\.com/);
   assert.match(text(document.body), /LP-TEST1234/);
 });
 
@@ -281,9 +284,9 @@ test('interview request: tells the person plainly when it cannot be saved, and l
   setupDom('interview', { speech: Rec });
   let n = 0;
   startInterview(document.getElementById('interview-root'), { post: async () => (++n === 1 ? { ok: false, status: 503, data: null } : { ok: true, status: 200, data: { receipt: 'LP-OK' } }) });
-  click(document.querySelector('#consent-box')); check('c_slots', ['sat3-pm']); radio('c_mode', 'phone'); say('c_contact', '9876543210');
-  const send = [...document.querySelectorAll('.btn')].find((b) => /Send my request/.test(b.textContent));
-  click(send); await tick(10); assert.match(err(), /not connected to storage/); assert.equal(send.disabled, false);
+  click(document.querySelector('#consent-box')); say('c_when', 'any evening'); say('c_contact', '9876543210');
+  const send = sendBtn();
+  click(send); await tick(10); assert.match(err(), /not connected to storage/); assert.equal(send.disabled, false, 'the consent is still ticked, so they can retry');
   click(send); await tick(10); assert.match(text(document.body), /We will be in touch/);
 });
 
@@ -429,13 +432,13 @@ test('admin: wrong key is refused, the right key lists answers and interview req
   setupDom('admin');
   const data = { reviews: [{ receipt: 'LP-AAAA1111', answers: { explain: '<img src=x onerror="window.__pwned=1"> It locks the paper, so nobody can leak it early.', change: '</div><svg onload=window.__pwned=2>' } }],
     quick: [{ id: 'abcdef123456', scene: '2', clear: 'no', comment: 'keys unclear' }],
-    contact: [{ receipt: 'LP-BBBB2222', source: 'interview', c_contact: 'asha@example.com', c_name: 'Asha', c_slots: ['sat3-am', 'sat3-pm'], c_mode: 'meet', c_when: 'Thursday after 7', c_topic: 'I set papers' }, { receipt: 'LP-CCCC3333', source: 'review', c_contact: '98765', c_slots: ['sat3-am'], c_mode: 'phone' },
+    contact: [{ receipt: 'LP-BBBB2222', source: 'interview', consent: true, c_when: 'Thursday after 7 pm, or any weekend', c_contact: 'asha@example.com', c_name: 'Asha' }, { receipt: 'LP-CCCC3333', source: 'interview', consent: true, c_when: 'Sunday', c_contact: '98765' },
       // every review leaves a contact record with its email; one that asked for no call must not show up as an interview request
       { receipt: 'LP-AAAA1111', source: 'review', email: 'asha@example.com' }, { receipt: 'LP-EEEE5555', source: 'review', email: 'ravi@example.com', c_link: 'https://example.com/r' }] };
   const people = [
-    { receipt: 'LP-AAAA1111', receivedAt: '2026-10-02T10:00:00.000Z', email: 'asha@example.com', name: 'Asha', role: 'course_peer', minutes: 11, completedTasks: 4, swapLink: 'https://forms.gle/AshaStudy', slots: ['Sat 3 Oct, 10 am to 1 pm'], mode: 'Video call (Google Meet)', contact: '', when: '', timesSeen: 2 },
-    { receipt: 'LP-DDDD4444', receivedAt: '2026-10-02T11:00:00.000Z', email: 'asha@example.com', name: '', role: 'course_peer', minutes: 9, completedTasks: 3, swapLink: 'javascript:alert(1)', slots: [], mode: '', contact: '', when: '', timesSeen: 2 },
-    { receipt: 'LP-EEEE5555', receivedAt: '2026-10-02T12:00:00.000Z', email: 'ravi@example.com', name: '', role: 'faculty_ta', minutes: 14, completedTasks: 4, swapLink: '', slots: [], mode: '', contact: '', when: '', timesSeen: 1 }];
+    { receipt: 'LP-AAAA1111', receivedAt: '2026-10-02T10:00:00.000Z', email: 'asha@example.com', name: 'Asha', role: 'course_peer', minutes: 11, completedTasks: 4, swapLink: 'https://forms.gle/AshaStudy', timesSeen: 2 },
+    { receipt: 'LP-DDDD4444', receivedAt: '2026-10-02T11:00:00.000Z', email: 'asha@example.com', name: '', role: 'course_peer', minutes: 9, completedTasks: 3, swapLink: 'javascript:alert(1)', timesSeen: 2 },
+    { receipt: 'LP-EEEE5555', receivedAt: '2026-10-02T12:00:00.000Z', email: 'ravi@example.com', name: '', role: 'faculty_ta', minutes: 14, completedTasks: 4, swapLink: '', timesSeen: 1 }];
   mountAdmin(async () => ({ ok: true, text: async () => '' }), async (url, headers) => (headers['x-admin-key'] !== 'right-key-123' ? { ok: false, status: 401, data: null } : url.includes('kind=participants') ? { ok: true, status: 200, data: { participants: people } } : { ok: true, status: 200, data }));
   document.querySelector('#admin-key').value = 'nope'; document.querySelector('#admin-form').dispatchEvent(new window.Event('submit', { cancelable: true })); await tick(10);
   assert.match(text(document.querySelector('#admin-msg')), /not right/);
@@ -443,11 +446,9 @@ test('admin: wrong key is refused, the right key lists answers and interview req
   document.querySelector('#admin-key').value = 'right-key-123'; document.querySelector('#admin-form').dispatchEvent(new window.Event('submit', { cancelable: true })); await tick(10);
   const out = document.querySelector('#admin-out');
   assert.match(text(out), /1 reviews, 1 quick comments, 3 free-text answers/);
-  assert.match(text(out), /Interview requests \(2\)/, 'only people who asked for a call are listed');
+  assert.match(text(out), /Interview requests \(2\)/, 'only people who used the chat form are listed');
   assert.ok(!/Reach: \(none\)/.test(text(out)), 'a reviewer with no call request is not an interview request');
-  assert.match(text(out), /Sat 3 Oct, 10 am to 1 pm \(2\)/, 'slot popularity helps schedule');
-  assert.match(text(out), /Sat 3 Oct, 2 pm to 5 pm \(1\)/);
-  assert.match(text(out), /Reach: asha@example\.com · Asha/); assert.match(text(out), /Video call \(Google Meet\)/); assert.match(text(out), /Thursday after 7/);
+  assert.match(text(out), /Reach: asha@example\.com · Asha/); assert.match(text(out), /Free: Thursday after 7 pm, or any weekend/, 'shows exactly what the person typed'); assert.ok(!/Slots by how many/.test(text(out)), 'no slot table: people write their own times');
   assert.match(text(out), /Who gave reviews \(3\)/);
   assert.match(text(out), /LP-AAAA1111.*SEEN 2 TIMES/); assert.match(text(out), /asha@example\.com · Asha/); assert.match(text(out), /classmate · 11 min · 4 of 4 tasks finished/);
   assert.match(text(out), /ravi@example\.com/); assert.match(text(out), /faculty or TA/); assert.match(text(out), /No swap link given/);

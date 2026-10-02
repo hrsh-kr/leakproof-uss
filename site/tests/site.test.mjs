@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SECTIONS, flatten, visible, SLOTS, MODES, INTERVIEW } from '../src/js/survey-def.mjs';
+import { SECTIONS, flatten, visible, INTERVIEW, CONTACT_IDS } from '../src/js/survey-def.mjs';
 import { TAB_OF } from '../src/js/routes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -95,7 +95,7 @@ test('pages generated from the project docs are populated', () => {
   assert.match(html.course, /R-S01/);
   assert.match(html.course, /R-U01/);
   assert.match(html.course, /T-24/);
-  assert.equal((html.course.match(/<details class="decision">/g) || []).length, 19, 'nineteen decisions');
+  assert.equal((html.course.match(/<details class="decision">/g) || []).length, 20, 'twenty decisions');
   assert.match(html.course, /A11/);
   assert.match(html.course, /RQ6/);
 });
@@ -148,10 +148,13 @@ test('old URLs still reach the new pages (redirects configured)', () => {
   assert.equal(from['/deliverables'], '/course#checklist');
 });
 
-test('interview slots and modes are well formed and used by the review and the interview form', () => {
-  for (const list of [SLOTS, MODES]) { assert.ok(list.length >= 3); assert.equal(new Set(list.map((x) => x.value)).size, list.length); for (const x of list) assert.ok(x.value && x.label); }
+test('the chat form is minimal: consent first and required, then when and how to reach; the review ends with the swap link', () => {
+  assert.deepEqual(INTERVIEW.questions.map((q) => q.id), ['consent', 'c_when', 'c_contact', 'c_name']);
+  assert.equal(INTERVIEW.questions[0].type, 'consent'); assert.equal(INTERVIEW.questions[0].required, true, 'no consent, no request');
+  for (const id of ['c_when', 'c_contact']) assert.equal(INTERVIEW.questions.find((q) => q.id === id).required, true, id);
+  assert.ok(!INTERVIEW.questions.find((q) => q.id === 'c_name').required);
   const finish = SECTIONS.find((x) => x.id === 'finish').questions;
-  assert.equal(finish.find((q) => q.id === 'c_slots').options, SLOTS);
-  assert.equal(INTERVIEW.questions.find((q) => q.id === 'c_slots').options, SLOTS);
-  for (const id of ['c_slots', 'c_mode', 'c_contact']) assert.ok(finish.find((q) => q.id === id).requiredIf, id + ' is required once the person says yes');
+  assert.deepEqual(finish.map((q) => q.id), ['c_link', 'c_name'], 'the review no longer asks for a call');
+  assert.deepEqual(flatten().map((q) => q.id).filter((id) => /followup|c_slots|c_mode|c_topic/.test(id)), []);
+  for (const q of INTERVIEW.questions) if (q.id !== 'consent') assert.ok(CONTACT_IDS.includes(q.id), q.id + ' is kept in the separate contact record');
 });

@@ -108,17 +108,16 @@ test('the same clientId returns the same receipt and is stored once', async () =
   assert.equal(all.filter((x) => x.receipt === r1.body.receipt).length, 1);
 });
 
-test('contact details are stored separately and never in reviews, stats or the default export', async () => {
-  const b = validReview({ followup: 'yes', c_contact: 'secret-person@example.com', c_name: 'Secret Person', c_slots: ['sat3-am', 'sun4-pm'], c_mode: 'phone', c_when: 'Thursday after 7 pm' });
+test('email, name and swap link are stored separately and never in reviews, stats or the default export', async () => {
+  const b = validReview({ email: 'secret-person@example.com', c_name: 'Secret Person', c_link: 'https://example.com/secret-study' });
   const r = await post(b);
   assert.equal(r.statusCode, 200);
   const reviews = await new FileStore(dir).list('review');
   const mine = reviews.find((x) => x.receipt === r.body.receipt);
   assert.ok(mine);
-  assert.ok(!JSON.stringify(mine).includes('secret-person'));
-  assert.ok(!JSON.stringify(mine).includes('Secret Person'));
+  for (const secret of ['secret-person', 'Secret Person', 'secret-study']) assert.ok(!JSON.stringify(mine).includes(secret), secret);
   const contacts = await new FileStore(dir).list('contact');
-  assert.ok(contacts.some((c) => c.receipt === r.body.receipt && c.c_contact === 'secret-person@example.com'));
+  assert.ok(contacts.some((c) => c.receipt === r.body.receipt && c.email === 'secret-person@example.com' && c.c_name === 'Secret Person'));
   const st = await call(stats, {});
   assert.ok(!JSON.stringify(st.body).includes('secret-person'));
   const ex = await adminGet();
@@ -255,27 +254,19 @@ test('responses are never cached by shared caches on the export route', async ()
   assert.equal(r.headers['Cache-Control'], 'no-store');
 });
 
-test('follow-up call: choosing yes requires slots, a mode and a way to reach the person', async () => {
-  const base = { followup: 'yes', c_contact: 'person@example.com', c_slots: ['sat3-am'], c_mode: 'meet' };
-  assert.equal((await post(validReview(base))).statusCode, 200);
-  for (const missing of ['c_contact', 'c_slots', 'c_mode']) {
-    const a = { ...base }; delete a[missing];
-    const r = await post(validReview(a));
-    assert.equal(r.statusCode, 400, missing);
-    assert.ok(r.body.errors.some((e) => e.includes(missing)), missing);
+test('the review has no call fields any more: asking for a chat happens only in the separate form', async () => {
+  assert.equal((await post(validReview({ followup: 'no' }))).statusCode, 400, 'followup is not a review question');
+  for (const f of [{ c_contact: 'person@example.com' }, { c_when: 'Saturday evening' }, { c_slots: ['sat3-am'] }, { c_mode: 'meet' }, { c_topic: 'hello' }]) {
+    const r = await post(validReview(f));
+    assert.equal(r.statusCode, 400, JSON.stringify(f) + ' must be refused in a review');
+    assert.ok(r.body.errors.some((e) => /unknown answer/.test(e)));
   }
-  assert.equal((await post(validReview({ ...base, c_slots: [] }))).statusCode, 400);
-  assert.equal((await post(validReview({ ...base, c_slots: ['not-a-slot'] }))).statusCode, 400);
-  assert.equal((await post(validReview({ ...base, c_mode: 'carrier-pigeon' }))).statusCode, 400);
-  assert.equal((await post(validReview({ ...base, c_contact: 'abc' }))).statusCode, 400, 'too short to be a contact');
-  // saying no must not smuggle contact fields in
-  assert.equal((await post(validReview({ followup: 'no', c_slots: ['sat3-am'] }))).statusCode, 400);
-  assert.equal((await post(validReview({ followup: 'no' }))).statusCode, 200);
+  assert.equal((await post(validReview({ c_name: 'Asha' }))).statusCode, 200, 'the optional name stays');
 });
 
-const interview = (over = {}) => ({ kind: 'interview', clientId: cid(), answers: { consent: true, c_slots: ['sat3-pm', 'sun4-am'], c_mode: 'whatsapp', c_contact: '+91 98765 43210', c_name: 'Ravi', c_topic: 'I set papers for a state board.', ...over } });
+const interview = (over = {}) => ({ kind: 'interview', clientId: cid(), answers: { consent: true, c_when: 'Saturday after 6 pm, or any evening next week', c_contact: '+91 98765 43210', c_name: 'Ravi', ...over } });
 
-test('interview request: stored apart from answers, with the chosen times, and visible only to the admin', async () => {
+test('interview request: stored apart from answers, exactly as typed, with the consent, visible only to the admin', async () => {
   freshEnv();
   const r = await post(interview());
   assert.equal(r.statusCode, 200);
@@ -284,29 +275,33 @@ test('interview request: stored apart from answers, with the chosen times, and v
   const contacts = await new FileStore(process.env.LEAKPROOF_DATA_DIR).list('contact');
   assert.equal(contacts.length, 1);
   assert.equal(contacts[0].source, 'interview');
-  assert.deepEqual(contacts[0].c_slots, ['sat3-pm', 'sun4-am']);
-  assert.equal(contacts[0].c_mode, 'whatsapp');
-  assert.ok(!('consent' in contacts[0]));
+  assert.equal(contacts[0].c_when, 'Saturday after 6 pm, or any evening next week');
+  assert.equal(contacts[0].c_contact, '+91 98765 43210'); assert.equal(contacts[0].c_name, 'Ravi');
+  assert.equal(contacts[0].consent, true, 'the consent is kept with the request');
   assert.equal(JSON.stringify((await call(stats, {})).body).includes('98765'), false);
   assert.equal(JSON.stringify((await adminGet()).body).includes('98765'), false, 'default export has no contacts');
   assert.ok(JSON.stringify((await adminGet({ include: 'contact' })).body).includes('98765'));
   assert.equal((await call(exportApi, { method: 'GET', query: { include: 'contact' } })).statusCode, 401);
 });
 
-test('interview request: required fields, valid choices, no extras, one per person', async () => {
-  for (const missing of ['consent', 'c_slots', 'c_mode', 'c_contact']) {
+test('interview request: the consent box is required, other fields too, no extras, one per person', async () => {
+  for (const missing of ['consent', 'c_when', 'c_contact']) {
     const b = interview(); delete b.answers[missing];
     assert.equal((await post(b)).statusCode, 400, missing);
   }
-  assert.equal((await post(interview({ consent: false }))).statusCode, 400);
-  assert.equal((await post(interview({ c_slots: [] }))).statusCode, 400);
-  assert.equal((await post(interview({ c_slots: ['yesterday'] }))).statusCode, 400);
-  assert.equal((await post(interview({ c_mode: 'x' }))).statusCode, 400);
+  for (const no of [false, 'true', 1, 'yes', null, 'on']) assert.equal((await post(interview({ consent: no }))).statusCode, 400, `consent ${JSON.stringify(no)} is not a tick`);
+  assert.equal((await post(interview({ c_when: '' }))).statusCode, 400);
+  assert.equal((await post(interview({ c_when: 'ab' }))).statusCode, 400, 'too short to mean anything');
+  assert.equal((await post(interview({ c_when: 'x'.repeat(301) }))).statusCode, 400);
+  assert.equal((await post(interview({ c_when: 'x'.repeat(300) }))).statusCode, 200);
+  assert.equal((await post(interview({ c_when: ['sat'] }))).statusCode, 400, 'text only');
   assert.equal((await post(interview({ c_contact: 'a' }))).statusCode, 400);
-  assert.equal((await post(interview({ c_topic: 'x'.repeat(801) }))).statusCode, 400);
-  assert.equal((await post(interview({ role: 'faculty_ta' }))).statusCode, 400, 'review answers are not accepted here');
+  assert.equal((await post(interview({ c_name: 'x'.repeat(121) }))).statusCode, 400);
+  for (const old of [{ c_slots: ['sat3-am'] }, { c_mode: 'phone' }, { c_topic: 'hi' }, { role: 'faculty_ta' }, { email: 'a@example.com' }]) assert.equal((await post(interview(old))).statusCode, 400, JSON.stringify(old) + ' is not part of this form');
   const extra = interview(); extra.metrics = {};
   assert.equal((await post(extra)).statusCode, 400);
+  const onlyRequired = interview(); delete onlyRequired.answers.c_name;
+  assert.equal((await post(onlyRequired)).statusCode, 200, 'the name is optional');
   const b = interview();
   const r1 = await post(b), r2 = await post(b);
   assert.equal(r1.body.receipt, r2.body.receipt);
@@ -407,9 +402,9 @@ test('two different people with the same email each get a receipt; the same pers
 
 test('an interview request or a quick comment can never appear as a reviewer, and carries no email', async () => {
   const before = (await participants()).length;
-  await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_slots: ['sat3-am'], c_mode: 'meet', c_contact: 'x@y.co' } });
+  await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_when: 'any evening', c_contact: 'x@y.co' } });
   await post({ kind: 'quick', clientId: cid(), scene: '1', clear: 'yes', comment: 'ok' });
   assert.equal((await participants()).length, before);
-  const iv = await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_slots: ['sat3-am'], c_mode: 'meet', c_contact: 'x@y.co', email: 'z@example.com' } });
+  const iv = await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_when: 'any evening', c_contact: 'x@y.co', email: 'z@example.com' } });
   assert.equal(iv.statusCode, 400, 'the interview form has no email field, so an extra one is refused');
 });

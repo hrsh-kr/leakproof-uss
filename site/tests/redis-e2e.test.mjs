@@ -21,10 +21,10 @@ const admin = (query = {}) => call(exportApi, { method: 'GET', headers: { 'x-adm
 test.after(() => server.close());
 
 test('production storage: a review, a quick comment and an interview request are stored and read back over HTTP', async () => {
-  const r = await post(validReview({ followup: 'yes', c_contact: 'a@b.co', c_slots: ['sat3-am'], c_mode: 'meet' }));
+  const r = await post(validReview({ c_name: 'Redis Tester' }));
   assert.equal(r.statusCode, 200);
   assert.equal((await post({ kind: 'quick', clientId: cid(), scene: '3', clear: 'no', comment: 'Seat numbers confuse me' })).statusCode, 200);
-  const iv = await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_slots: ['sun4-pm'], c_mode: 'phone', c_contact: '98765 43210' } });
+  const iv = await post({ kind: 'interview', clientId: cid(), answers: { consent: true, c_when: 'Sunday afternoon', c_contact: '98765 43210' } });
   assert.equal(iv.statusCode, 200);
   assert.ok(emu.requests > 0);
   const keys = [...store.keys()];
