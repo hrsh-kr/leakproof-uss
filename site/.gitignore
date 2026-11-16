@@ -3,3 +3,5 @@ public
 .data
 .vercel
 .env*
+dist-pipeline/
+dist-pipeline.zip

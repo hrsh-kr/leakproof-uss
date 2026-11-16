@@ -14,14 +14,18 @@ Old URLs (`/how`, `/try`, `/prototypes`, `/research`, `/requirements`, `/deliver
     src/docs/        snapshot of project docs the Requirements tab renders (refreshed on build)
     api/             Vercel functions: submit, stats, export (+ _lib)
     scripts/         build, dev server, link checker, survey table generator
-    tests/           146 tests
+    tests/           167 tests
+
+## Build the pipeline (`/pipeline`)
+
+A mid-fidelity, Scratch-like demo for a university exam: one paper with 10 topics, where each of 10 setters writes one multiple-choice question for every topic (`src/js/exam-bank.mjs`, 100 questions), a random draw of one of the ten per topic, paper assembly, AES-256-GCM encryption, Shamir 3-of-5 key split, key hand-out to five officials, a real 3-of-5 unlock (fewer approvals are really tried and refused), and per-seat printing with copy IDs. Every step runs the real algorithm (`src/js/pipeline-core.mjs`, built on `logic.mjs`) and is animated (`src/js/pipeline.js`), with a plain-language caption, the mechanism names, live values, and a hash-chained activity log. **Admin view** (demo only) shows seed, key, key pieces and who can see what, and makes every box in the animation clickable (a topic shows which setter wrote which question; a setter shows their whole file; a picked question, a paper line, a key piece or an official shows the real values behind it); with it off, secrets and authors are masked. The page is a list of eight steps, each with a one-line description and a "Do step N for me" button; a step unlocks when the one before it is done. Tests: `tests/pipeline.test.mjs`.
 
 ## Run and test
 
     cd project/site
     npm install          # dev dependency (jsdom) for the UI tests only
     npm run dev          # http://localhost:3000   (PORT=3011 npm run dev to change)
-    npm test             # 146 tests (builds first)
+    npm test             # 167 tests (builds first)
     node scripts/check-links.mjs   # checks every external source link (needs network)
 
 Locally, answers go to `.data/` and the admin key is `dev-admin-key`.

@@ -1,0 +1,8 @@
+# Nothing secret belongs in this folder; this is a safety net for files generated next to the scripts.
+*.key
+*.env
+*credentials*
+secrets/
+submission/
+*.tgz
+*.tar.gz

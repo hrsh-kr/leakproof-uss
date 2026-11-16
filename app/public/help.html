@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help and rules · LeakProof</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/"><img src="/icon.svg" alt="" width="22" height="22"> LeakProof</a>
+    <a class="small helplink" href="/">Back to the app</a>
+  </header>
+  <main>
+    <h1>Help and rules</h1>
+    <p class="muted">This page is plain text and needs no login and no extra software. The full guide is <code>USER_GUIDE.md</code> in the submission package.</p>
+
+    <div class="card">
+      <h2>What LeakProof is</h2>
+      <p>LeakProof runs one exam so that no single person can read the paper early, and a leaked copy points to a seat. Questions are encrypted as TAs submit them. At sealing, one question per topic is drawn and the paper is locked under a key held by the professor (1 key card). The professor must approve before the paper opens. Each seat then gets the same questions in its own order, so a leaked copy can be traced to a seat, not to a person.</p>
+    </div>
+
+    <div class="card">
+      <h2>How to start (practice instance)</h2>
+      <p>Practice address: <code>https://192.168.2.238:8443/</code>. Demo pods (shared accounts, listed in <code>TESTERS.md</code>): <code>https://192.168.2.238:7443/</code>.</p>
+      <ol>
+        <li>Open the app, choose <b>Join a class</b> and enter the course code for your role — <code>LP-PROF-G19</code> (professor), <code>LP-TA-G19</code> (TA), or <code>LP-STU-G19</code> (student) — a username (3 to 32 characters: lowercase letters, digits, dot, dash or underscore), and a display name.</li>
+        <li>You see a passphrase and a recovery code once. Press <b>Copy both</b> or <b>Download</b>, tick the box, then <b>Continue</b>.</li>
+        <li>In the practice instance you can register accounts for all three roles: TA, professor (key holder), and student. Follow the <b>Next step</b> box on the exam page.</li>
+        <li>The browser warns about the certificate because it is self-signed. This is expected. Press Advanced and then proceed (Chrome and Edge), Accept the Risk and Continue (Firefox) or visit this website (Safari). To check the root certificate, compare its SHA-256 fingerprint with the one in <code>TESTERS.md</code>; the steps are in section 2 of the user guide.</li>
+      </ol>
+      <p class="small muted">The practice instance has no shared accounts: register your own. The demo pods have shared accounts on the honour system, restored every night. This page shows no passwords.</p>
+    </div>
+
+    <div class="card">
+      <h2>The three stages</h2>
+      <ol>
+        <li><b>Collect.</b> TAs add one question per topic. Every topic needs at least 1 question from a TA before sealing.</li>
+        <li><b>Seal.</b> The professor presses <b>Seal the exam</b>. One question per topic is drawn, the paper is locked, 1 key card is issued to the professor, and every other question is deleted. The professor creates the card with a passphrase of at least 14 characters, saves the file and verifies it. The server then deletes its own copy. The card must be verified before release can be requested.</li>
+        <li><b>Release.</b> Inside the print window the professor enters the number of seats and presses <b>Request release</b>. Two words appear on their screen. The professor types the words, loads their card, types its passphrase and presses <b>Approve with card 1</b>. The paper opens and each seat can be printed. The first print of a seat is logged; reprints are counted. The request expires after 15 minutes.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>Rules for testers</h2>
+      <h3>In scope</h3>
+      <ul>
+        <li>The practice instance and the demo pods, from a browser or <code>curl</code>, with accounts you registered yourself or the demo accounts.</li>
+        <li>The source tarball run locally, for code review.</li>
+        <li>Functional bugs: anything that does not match the user guide.</li>
+      </ul>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Any DDoS or flood, from one machine or many. This is not allowed.</li>
+        <li>The host machine, its operating system, SSH and the proxy admin port.</li>
+        <li>The official instance (it runs on the night of 25 Nov and is not open to testers), other groups' systems, social engineering, physical access.</li>
+      </ul>
+      <h3>Please keep it low volume</h3>
+      <p>A few hundred requests per test is plenty. Do not create accounts in bulk; the daily sign-up cap applies.</p>
+    </div>
+
+    <div class="card">
+      <h2>Known limits</h2>
+      <ul>
+        <li>The server operator can read memory while the paper is open. A trusted operator is assumed; see <code>SECURITY.md</code>.</li>
+        <li>The certificate is self-signed, so the browser warns once.</li>
+        <li>The two-word check is a presence check with 5 tries per key holder and request, not strong cryptography.</li>
+        <li>The professor can veto a release by refusing it; the log shows it.</li>
+        <li>A trace names a seat, not a person. It needs the questions with their options to name a single seat.</li>
+        <li>In the practice instance you can register one account per role to try the full pipeline.</li>
+        <li>Rate limits apply per network and per account.</li>
+        <li>Full list: section 12 of the user guide and <code>SECURITY.md</code> section 4.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Works as designed</h2>
+      <p>Please do not report these as bugs.</p>
+      <ul>
+        <li>A refusal closes the release request. The professor can request release again.</li>
+        <li>A verified card cannot be shown again. Keep the file and its passphrase.</li>
+        <li>A server restart locks the paper again and closes open requests.</li>
+        <li>You are signed out after 30 minutes without activity.</li>
+        <li>A missing role answers "Not found", the same as a missing exam.</li>
+        <li>There are no email or SMS codes. The recovery code is the way back in.</li>
+        <li>Usernames are unique, so sign-up says when a name is taken.</li>
+        <li>Five wrong tries of the two words lock the professor out of that request. A new release request is needed.</li>
+        <li>A trace needs the questions with their options to name a single seat.</li>
+        <li>The answer key is per seat: each seat has its own question order.</li>
+        <li>Demo pods are restored every night at 04:00 server time. Sessions end and open papers lock again.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>How to report</h2>
+      <p>Send the steps, the exact request and response, what you gained, and whether it works on a fresh account. Say which instance, account and browser you used. Tell the team before filing that the site is down. How to reach us: see <code>TESTERS.md</code>. This does not replace your own official submission.</p>
+      <p><a class="btn" href="/">Back to the app</a></p>
+    </div>
+  </main>
+</body>
+</html>

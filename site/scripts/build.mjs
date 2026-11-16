@@ -7,7 +7,7 @@ import { makeGenerators, esc } from './docs.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'src');
 const OUT = path.join(ROOT, 'public');
-const PARENT = path.resolve(ROOT, '..');
+const PARENT = path.resolve(ROOT, '..', 'docs');
 const DOCS = path.join(SRC, 'docs');
 const DOC_FILES = ['02_final_scope_and_decisions.md', '05_threat_model_v0.md', '06_requirements_register.md'];
 

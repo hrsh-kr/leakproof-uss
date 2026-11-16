@@ -1,0 +1,61 @@
+# LeakProof behind Caddy. Installed by deploy/release.sh as /etc/caddy/Caddyfile with __VM_IP__ replaced
+# by the VM address (caddy validate runs first; a failing file is never loaded).
+#
+# TLS: Caddy's internal CA signs a certificate for the bare IP. Browsers do not trust that CA, so testers import
+# the ROOT certificate once and check its SHA-256 fingerprint, which deploy/make-package.sh prints. The root
+# never changes; leaf certificates are renewed by Caddy automatically (lifetime set below).
+#
+# Ports:  8443 practice (to 8080) | 7443 demo (to 7090) | 9443 official (to 9090, added on exam night by
+# deploy/enable-official.sh through /etc/caddy/leakproof.d/official.caddy, so it never answers 502 while off).
+{
+	servers {
+		protocols h1 # HTTP/1.1 only: removes the HTTP/2 Rapid Reset class tried on FCS Group 1
+		timeouts {
+			read_header 10s # slowloris: slow headers are cut off
+			read_body 10s
+			write 30s
+			idle 15s
+		}
+	}
+}
+
+(leakproof) {
+	tls {
+		issuer internal {
+			lifetime 72h # default is 12 h; must stay below the 7-day intermediate
+		}
+	}
+	request_body {
+		max_size 32KB # the app refuses anything over 16 KB anyway
+	}
+	header -Server
+	# Access log: evidence for Part B (which attacks, how often). Rolled by Caddy itself, about 250 MB at most.
+	# Cookie and Authorization header values are redacted by Caddy's default log filters.
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 240h
+		}
+		format json
+	}
+	reverse_proxy {args[0]} {
+		# The app believes X-Real-IP only from 127.0.0.1 (LP_TRUST_PROXY=1); clients cannot spoof it.
+		header_up X-Real-IP {remote_host}
+		header_up -X-Forwarded-For
+	}
+}
+
+# Practice instance (peer testing, 18 to 25 Nov)
+https://__VM_IP__:8443 {
+	import leakproof 127.0.0.1:8080
+}
+
+# Demo pods (shared accounts, reset nightly)
+https://__VM_IP__:7443 {
+	import leakproof 127.0.0.1:7090
+}
+
+# Official instance: NOT here. deploy/enable-official.sh writes /etc/caddy/leakproof.d/official.caddy.
+# A glob that matches no file is a no-op, so this line is safe while the directory is empty.
+import /etc/caddy/leakproof.d/*.caddy

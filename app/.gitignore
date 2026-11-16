@@ -1,0 +1,25 @@
+# secrets: never commit (design 3, 6.1)
+*.key
+*.env
+*credentials*
+secrets/
+submission/
+/etc/leakproof/
+
+# databases and runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+/data/
+
+# node
+node_modules/
+npm-debug.log*
+
+# generated evidence
+evidence/SR*.txt
+evidence/*.png
+
+# os
+.DS_Store

@@ -1,0 +1,6 @@
+[Unit]
+Description=Restore the demo instance from its golden snapshot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/lp-demo-reset

@@ -1,0 +1,65 @@
+# Round 5 synthesis: the fix-before-freeze plan
+
+Inputs: C1 security, C2 cryptography, C3 web design, C4 HCI, C5 process/CI-CD, C6 compliance, T1 recon, T3 fuzzing/fault injection, T5 recovery/resources, T6 functional/usability, T7 test quality. (T2 and T4, the access-control pentest and the cryptanalysis tester, were stopped by the model safeguards and produced nothing: access control is covered only by C1's review, T1, T3 and our own route-matrix tests. Say so in the video; do not claim it was tested.)
+
+Rule for this list: change code only if it closes a report a classmate could file (a working exploit, a broken feature, a wrong guide statement) or if a bug would be permanent after 17 Nov midnight. Everything else is a stated limit with a pre-written rebuttal (C6 section 3). Each fix needs a test. Never weaken a test; deliberate behaviour changes update the test and say so.
+
+## S: server, tests, scripts (owner: `server.mjs`, `src/**`, `tests/**`, `scripts/**`, `SECURITY.md`, `README.md`)
+| # | Change | Source |
+|---|---|---|
+| S1 | `CREATE INDEX IF NOT EXISTS log_exam ON log(exam_id, seq)`; reword SECURITY.md claim that the log check costs the same however long the log grows (it is a full walk at most every 30 s) | C1, T3, T5 |
+| S2 | Cap log growth: a reprint appends a log row only for the first 3 fetches of a seat (the `copies.fetches` counter keeps counting); card fetch already once per slot | T5-1 |
+| S3 | Deep `/healthz`: `SELECT 1` on the DB plus `PRAGMA quick_check` cached 60 s; on failure answer 503 `{ ok:false, reason }` (a hung process cannot answer anyway). At start-up run `quick_check` and the log chain verification and, on failure, print an error and keep serving only `/healthz` as 503 (do not exit: a crash loop is the same outage) | T5-2, T5-3 |
+| S4 | `PRAGMA busy_timeout = 5000` | T3 |
+| S5 | Node-level replies carry the security headers: `clientError` replies (400/408/431, missing Host), `checkExpectation`/`checkContinue` (Expect: foo → handled as a normal request) | T3 |
+| S6 | Usernames: validate the ASCII pattern on the trimmed raw string BEFORE lower-casing (Kelvin sign U+212A aliasing). Reject control and format characters (`\p{Cc}`, `\p{Cf}`: NUL, bidi, zero-width) in display names, question text, options; compare options after stripping them | T3 |
+| S7 | Wrong-words lockout per (holder account, release): 5 wrong tries lock out that holder for this request instead of closing it for everyone; refusal still needs the words; a locked-out holder is logged | C2-2, C1 |
+| S8 | `trace` result: when more than one seat matches, the note says "N seats match; paste the options as well for a single seat" (and when the fragment had no options) | C2-3, T6-F3, C1 |
+| S9 | Log `sha256(seed)` in the `exam.sealed` entry (`seed` already allowed in the log fields) so the seed is committed before it is revealed | C2-6 |
+| S10 | Opened-paper memory: keep at most 200 opened papers (oldest evicted = that paper locks again like after a restart, a new quorum opens it); evict also when idle > 6 h | T5-5 |
+| S11 | Static files: only `/` (and `/index.html`) serve the app shell; every other path must match a real file in `public/` or answer 404 (removes the "found /admin, /metrics" scanner noise). `help.html` and other static files must keep working | T1-F1 |
+| S12 | `sensitive` rate bucket (card verify, decide, trace) 20 → 60 per minute per account | T6-F11 |
+| S13 | `LP_MODE` env (`practice` or `official`) decides the behaviour; falls back to `LP_INSTANCE`. The demo instance runs as official mode with its own name, data dir and port | C5 section E |
+| S14 | `scripts/official-setup.mjs <exam.json> [--demo] [--out <file>]`: `--demo` creates accounts WITHOUT `must_change`; `--out` writes a markdown table `| role | username | passphrase | recovery code |` to the file with mode 0600 and prints no passphrase to stdout (without `--out` behaviour is unchanged) | C5, C1, C6 |
+| S15 | Bring in `docs/council/round5/T7_extra_tests.mjs` as `tests/extra.test.mjs` (25 tests, T7 report explains each); fix the test-quality gaps T7 lists (SR5 wrong-share test, S5 wipe test, SR2 backoff across users, SR6 log tamper beyond `detail`) | T7 |
+| S16 | Tests for S1-S14. SECURITY.md updated: every claim names a test; add the new measures; fix the over-claims C2 listed (cryptographic after verification → protects against data-at-rest theft, seed can be ground by the operator but is committed at seal, copy id is not verified, three holders plus the DB can open the paper offline, setter id stays in the DB for drawn questions, the trace ambiguity, the refusal veto); README test count | C2, C1 |
+| — | NOT doing (state as limits): clear `setter_id` after seal (schema/constraint risk in the seal path), GET→POST for copies/cards (client protocol change; SameSite=Strict protects), uncaughtException handler, per-IPv6 /64 limiter | C1, C2, T3 |
+
+## C: browser client (owner: `public/**` only)
+| # | Change | Source |
+|---|---|---|
+| C1 | Tab bug: `refresh()` must update the URL hash (use `history.replaceState`) so that clicking the tab you were just on re-renders (reproduced by T6: after Seal or Verify the "Exam cell" tab does nothing) | T6-F2 |
+| C2 | Account secrets screen: Continue stays disabled until Copy or Download was clicked (plus the existing checkbox); add a `beforeunload` guard while the screen is shown | C4 |
+| C3 | Card screens (`claimForm`, `bulkCards`): if neither Copy nor Download was clicked, the first press of Verify shows "You have not saved this card. Verifying deletes the server's copy. Press again to verify anyway" and only the second press verifies | C4 |
+| C4 | Card passphrase minimum 14 characters (and not one repeated character); message states why (stolen file, guessing) | C2-1 |
+| C5 | Forced-change screen wording: "New passphrase" / "Get a new passphrase" (the server generates it) | C4 |
+| C6 | Trace screen: placeholder and result say "paste the questions with their options"; show the server's new ambiguity note; no-match text "No seat matches this order." | T6-F3, C3 |
+| C7 | `public/help.html`: a static page without script (CSP unchanged) linked from the header and the login card (works logged out): what this is, how to start (course code is `LEAKPROOF-G19`), the three stages in plain words, rules of engagement for testers (in scope / out of scope / DDoS not allowed), known limits, "works as designed" list, how to report. Content comes from `USER_GUIDE.md` and `docs/council/round5/C6_compliance.md` section 2; no passwords on it. Show the instance label (Practice/Official) when logged out too | C3, C6, C4 |
+| C8 | Contrast: `--edge` token for input and button borders (3:1 or better in light and dark), opaque dark `--soft` | C3-1 |
+| C9 | Print: `@page` A4 margins, repeating fixed footer (seat, copy id, set hash, log head) on every page, bottom padding, serif 12 pt for `.paper`; answer-key band "ANSWER KEY. NOT FOR CANDIDATES" on the key page | C3-5, C3-6 |
+| C10 | Projector and phone: larger base size at ≥1400 px, `.words` with `clamp()`, single-column stage strip at ≤480 px, ✓ prefix on printed seat buttons, key button min height 36 px | C3 |
+| C11 | Two-step delete announces itself in an `aria-live` region and arms for 8 s | T6-F10 |
+| C12 | Dead CSS removal (`.grid2`, `.mono`, duplicate rules) only after grepping that no class is used | C3-11 |
+| C13 | Register screen: username rule as small text under the field; "course code" label links to `/help.html` | C3-8 |
+| — | NOT doing: heading-focus scheme, dialogs/focus traps, spinners, theme toggle, splitting app.js into modules, a markdown renderer | C3 |
+
+Contract with S: no API change except (a) the `trace` response `note` text, (b) deep `/healthz` 503 shape, (c) unchanged routes. If the client needs more from the server, ask in the report instead of assuming.
+
+## O: operations and delivery (owner: `deploy/**`, `.github/**`, `docs/OPERATIONS.md`; do not touch `src/`, `public/`, `tests/`)
+Implement C5's artefacts (appendices A, C, D, E) adapted to the facts below, plus C1/T1/T5 deploy findings. No SSH to the VM; validate with `bash -n`, `shellcheck` if present, and reasoning. Facts: Ubuntu 24.04, Node 22.23, Caddy 2.11.9 installed, `ufw` is ACTIVE on the VM (rules unknown; `iptables` is the nft backend), user `iiitd` with password sudo, service user `leakproof`, repo `~/leakproof` with remote on GitHub, unit template `leakproof@.service` with keys through `LoadCredential`, Caddy listens 8443 (practice → 8080) and 9443 (official → 9090), planned demo instance on 7443 → 7090 using `LP_MODE=official`.
+| # | Deliverable |
+|---|---|
+| O1 | `deploy/release.sh <tag>`: immutable `/srv/leakproof/releases/<tag>`, atomic `current` symlink, service restart, health check, auto-rollback on failure; `deploy/rollback.sh`; unit `WorkingDirectory=/srv/leakproof/current`; `deploy/` root-owned inside the release; `install.sh` reduced to one-time bootstrap (users, dirs, keys, units, Caddy, firewall, timers) that calls `release.sh`; `SKIP_TESTS=1` option; prerequisite checks printed first; fixed practice course code default `LEAKPROOF-G19` in `practice.env` (still overridable) |
+| O2 | Watchdog: unit drop-in (`StartLimitIntervalSec=0`, `MemoryHigh=400M`, `CPUQuota=300%`, `LimitCORE=0`), `lp-health.sh` + systemd timer (30 s; restart **practice** after 3 consecutive failures, max 4 per hour; restart Caddy if inactive; checks `/healthz`, disk usage, certificate expiry, Caddy; **official and demo are alert-only**), journald and log-rotation limits, Caddy access log (rolling) for Part B evidence |
+| O3 | `Caddyfile`: access log; root-CA story (publish the root CA fingerprint, longer leaf lifetime if `caddy validate` accepts it); official block 9443 commented out and enabled by `deploy/enable-official.sh` on exam night (no 502 from a closed service); demo site 7443 → 7090; keep HTTP/1.1, timeouts, body cap |
+| O4 | `firewall.sh`: `ufw`-aware (if ufw is active, add allow rules for 22, 8443, 7443, 9443 through ufw instead of fighting it), ports 7443 added, `connlimit` kept, SSH rate limit with `hashlimit` guarded (skip silently if the module is missing); never remove a rule the script did not add; must not lock out SSH. `deploy/harden-ssh.sh`: key-only login, written as a script that prints the change and requires an explicit `--apply`, and refuses unless an authorised key for the current user exists and a second session is advised |
+| O5 | Demo instance (C5 appendix E, using S14): `deploy/demo-setup.sh` (3 pods of 8 accounts, `--demo --out`, golden snapshot), `deploy/demo-reset.sh` (restore the golden snapshot, same credentials), nightly timer; the credentials file lives outside the repo (0600) |
+| O6 | `deploy/backup.sh` (SQLite `VACUUM INTO` through node plus keys to an off-tree path), `deploy/preflight.sh` (read-only checks to run first on the VM: node ≥ 22.5, `iptables`, `ufw`, caddy, ports in use, free disk, sudo availability), `deploy/make-package.sh` (assembles `submission/`: USER_GUIDE.md, TESTERS.md rendered from `docs/TESTERS.template.md` with `{{VM_IP}} {{COURSE_CODE}} {{CERT_ROOT_SHA256}} {{CREDENTIALS_TABLE}} {{RELEASE_TAG}} {{TARBALL_SHA256}}`, `git archive` tarball of the release tag and its SHA-256), update `smoke.sh` for 7443 and the new rules |
+| O7 | `.github/workflows/ci.yml` (Node 22: `npm test`, `node --check public/app.js`, secrets scan, check that every test name cited in SECURITY.md exists, no `innerHTML` in `public/`), `.github/PULL_REQUEST_TEMPLATE.md`, `deploy/official.example.json` with a third setter |
+| O8 | `docs/OPERATIONS.md`: the 3-person workflow (GitHub = source of truth, VM repo pulls from it, who deploys, hotfix path, freeze definition: tag `v1.0.0`, tarball + SHA-256 posted), CI/CD diagram in text, release checklist, the watchdog and clean-slate runbook (target < 2 minutes), the calendar 14-29 Nov with owners as M1/M2/M3, incident-log template for Part B (class, cause, fix, lesson), what may still change after the freeze (env files, keys, accounts, docs) |
+Every script that changes the system needs `--help`/a header comment saying what it changes, uses `set -euo pipefail`, and is idempotent.
+
+## D: guide and tester documents (written after S, C, O finish, so they match the real app): `USER_GUIDE.md`, `docs/TESTERS.template.md`, `help.html` check
+Contents per C4 section 4 and C6 section 2: per-role task steps with the real button names, certificate warning steps, fingerprint section, how credentials work (practice = self-registration; demo pods = shared, honour system, reset nightly), "works as designed" list, known limits, scope and rules of engagement (DDoS excluded), how to report, originality statement, glossary. Every statement must be true of the final code; every button name verbatim.
+
+## Test-week items needing the owner (no code): rehearse a full demo-pod run; fill the course code and root fingerprint (generated by `make-package.sh`); sudo for `release.sh`, firewall and timers; decide who plays M1/M2/M3; push the tag to GitHub.

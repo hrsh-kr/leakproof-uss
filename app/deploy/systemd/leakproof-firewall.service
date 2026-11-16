@@ -1,0 +1,14 @@
+# Applies deploy/firewall.sh once per boot. It is separate from the app units so that a firewall problem
+# can never keep the app from starting, and a restart of the app never touches the firewall.
+[Unit]
+Description=LeakProof firewall rules
+After=network-pre.target ufw.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/lp-firewall
+
+[Install]
+WantedBy=multi-user.target

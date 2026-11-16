@@ -1,0 +1,11 @@
+# Probe every 30 s. The timer name carries the instance: lp-health@practice.timer.
+[Unit]
+Description=LeakProof health probe timer (%i)
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=30
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

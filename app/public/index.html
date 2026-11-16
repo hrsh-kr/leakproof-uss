@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LeakProof</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a id="skip" class="skip" href="#main">Skip to main content</a>
+  <header class="top">
+    <a class="brand" href="#/"><img src="/icon.svg" alt="" width="22" height="22"> LeakProof</a>
+    <span id="instance" class="pill"></span>
+    <a class="small helplink" href="/help.html">Help and rules</a>
+    <nav id="nav"></nav>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <main id="main" tabindex="-1"><p class="muted">Loading…</p></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="wrap">LeakProof needs JavaScript to encrypt your key card on your own device.</p></noscript>
+</body>
+</html>

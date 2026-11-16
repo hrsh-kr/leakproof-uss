@@ -1,0 +1,13 @@
+{
+  "name": "leakproof",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Leak-resistant exam pipeline (UsS course project, Phase II). Zero dependencies.",
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.mjs",
+    "practice": "LP_INSTANCE=practice LP_DEV_HTTP=1 node --disable-warning=ExperimentalWarning server.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-reporter=spec tests/*.test.mjs"
+  }
+}

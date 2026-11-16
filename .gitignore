@@ -30,3 +30,14 @@ build/
 # Editor
 .vscode/
 .idea/
+.vercel
+
+# LeakProof app: runtime data, keys and databases never go into git
+app/data/
+*.key
+*.db
+*.db-wal
+*.db-shm
+
+# FCS reference material: may contain third-party identifiers/tokens
+reference/fcs/

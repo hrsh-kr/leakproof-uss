@@ -1,0 +1,111 @@
+<title>LeakProof Demo</title>
+<style>
+{{STYLE}}
+</style>
+{{TALLY_SCRIPT}}
+<nav class="bar" aria-label="Top"><div class="bar-in">
+  <span class="brand">LeakProof</span>
+  <button class="pill" type="button" data-feedback="top">Say what you think</button>
+</div></nav>
+
+<header class="scene hero"><div class="wrap">
+  <h1>Exam papers shouldn't leak.</h1>
+  <p class="lede">A paper nobody can read until the exam starts. And if one leaks anyway, we know where.</p>
+  <div class="cta"><a class="btn" href="#s1">See how it works</a><a class="btn ghost" href="#feedback">Skip to feedback</a></div>
+  <p class="fineprint">A 60-second prototype. Everything here is simulated.</p>
+</div></header>
+
+<section class="scene alt" id="why"><div class="wrap">
+  <div class="big-num">22 lakh</div>
+  <h2>students. One leak. Exam cancelled.</h2>
+  <p class="lede">NEET-UG 2026 was cancelled nine days after the exam. It keeps happening.</p>
+  <details><summary>Sources</summary>
+    <p>NEET-UG 2026: <a href="https://www.newslaundry.com/2026/05/14/behind-neets-cancelled-exam-are-22-lakh-students-and-a-report-barely-anyone-read">Newslaundry</a>, <a href="https://theprint.in/india/student-organisations-intensify-protest-over-alleged-neet-ug-paper-leak-after-exam-cancellation/2929464/">The Print</a>. UP Police Constable 2024, 48 lakh+ candidates: <a href="https://www.tribuneindia.com/news/india/tough-year-for-aspirants-amid-series-of-paper-leaks-cancelled-exams/">The Tribune</a>. A 2024 panel proposed printing papers at the exam centre; reporting says it was never piloted (Newslaundry). Recent leaks involved people who handled the paper: <a href="https://www.printweek.in/article/neet-ug-2026-leak-exposes-printing-press-weak-links/4saespfvmeksgrg2yr3jn94fdy">PrintWeek</a>, <a href="https://www.outlookindia.com/national/neet-ug-2024-paper-leak-supreme-court-patna-hazaribag-nta-centre">Outlook</a>. Accounts of the 2026 leak differ, so we claim no single cause.</p>
+  </details>
+</div></section>
+
+<section class="scene" id="s1"><div class="wrap">
+  <span class="eyebrow">1 · Many writers</span>
+  <h2>A few leaks don't leak the paper.</h2>
+  <p class="lede">20 people write the questions. A program draws the paper at the last moment.</p>
+  <div class="card">
+    <label class="slider-label" for="s1-n">Setters who leak their questions: <b id="s1-n-out">5</b> of 20</label>
+    <input type="range" id="s1-n" min="0" max="20" value="5">
+    <div class="squares" id="s1-squares" role="img" aria-label="The 15 questions on the paper. Red ones are known to the leakers."></div>
+    <p class="verdict" id="s1-verdict" role="status" aria-live="polite"></p>
+    <button class="link-btn" type="button" id="s1-again">Draw the paper again</button>
+  </div>
+  <details><summary>How it works</summary><p>Each setter writes 5 questions, so the pool has 100. The paper takes 5 each from Physics, Chemistry and Biology, drawn at random. A leaker's questions only matter if they happen to be drawn, and nobody can know that in advance. The same seed always gives the same paper, so the draw can be checked afterwards.</p></details>
+  <button class="link-btn" type="button" data-feedback="1">Confusing? Tell us</button>
+</div></section>
+
+<section class="scene alt" id="s2"><div class="wrap">
+  <span class="eyebrow">2 · Sealed</span>
+  <h2>No one can open it alone.</h2>
+  <p class="lede">The paper is locked. The key is split into five pieces. It takes three.</p>
+  <div class="card">
+    <div class="vault" id="s2-vault">
+      <svg class="lock" id="s2-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path id="s2-shackle" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <pre id="s2-pre" aria-live="polite"></pre>
+    </div>
+    <div class="keys" id="s2-keys" role="group" aria-label="Key holders. Tap to add a key."></div>
+    <p class="verdict" id="s2-verdict" role="status" aria-live="polite"></p>
+  </div>
+  <details><summary>How it works</summary><p>The paper above is really encrypted in your browser. The key is split with Shamir's secret sharing: any 3 of the 5 pieces rebuild it, and 2 pieces reveal nothing. In the real system a centre also needs a seating report and the right time window, and if anything is missing, nothing prints. Three dishonest key holders could still open it, which is why approvals are logged and the number needed is a setting.</p></details>
+  <button class="link-btn" type="button" data-feedback="2">Confusing? Tell us</button>
+</div></section>
+
+<section class="scene" id="s3"><div class="wrap">
+  <span class="eyebrow">3 · Traceable</span>
+  <h2>Every copy is different.</h2>
+  <p class="lede">If a photo leaks, we know which seat it came from.</p>
+  <div class="card">
+    <div class="photo" aria-label="A photo of a leaked page"><ol id="s3-photo"></ol></div>
+    <div class="seg" role="group" aria-label="How much of the page is in the photo">
+      <button type="button" id="s3-whole" aria-pressed="true">Whole page</button>
+      <button type="button" id="s3-top" aria-pressed="false">Top question only</button>
+    </div>
+    <div class="dots" id="s3-dots" role="img" aria-label="200 seats. Blue seats could have produced the photo."></div>
+    <p class="verdict" id="s3-verdict" role="status" aria-live="polite"></p>
+    <button class="link-btn" type="button" id="s3-new">Try another photo</button>
+  </div>
+  <details><summary>How it works</summary><p>Everyone gets the same four questions, but the order of the questions and of the options changes from seat to seat. That order is a fingerprint. A whole page points to one seat; a small piece narrows it to a few, and we say so instead of naming one person. This does not stop a photo being taken. It makes one traceable.</p></details>
+  <button class="link-btn" type="button" data-feedback="3">Confusing? Tell us</button>
+</div></section>
+
+<section class="scene alt" id="s4"><div class="wrap">
+  <span class="eyebrow">4 · Verifiable</span>
+  <h2>Nothing changes quietly.</h2>
+  <p class="lede">Every action is logged. Change one and it shows.</p>
+  <div class="card">
+    <div class="log" id="s4-log"></div>
+    <div class="fp" id="s4-fp"></div>
+    <p class="verdict" id="s4-verdict" role="status" aria-live="polite"></p>
+    <button class="btn" type="button" id="s4-go">Change a record</button>
+  </div>
+  <details><summary>How it works</summary><p>Each entry carries a fingerprint of its own content and the entry before it, so editing one breaks it. An attacker can recompute every fingerprint after the edit, so the log looks fine again. But the final fingerprint was published earlier, and it no longer matches. Removing the last entry is caught the same way.</p></details>
+  <button class="link-btn" type="button" data-feedback="4">Confusing? Tell us</button>
+</div></section>
+
+<section class="scene" id="feedback"><div class="wrap">
+  <h2>What would you change?</h2>
+  <p class="lede">Say it in 30 seconds, or type it. Anything helps.</p>
+  <div class="say">
+    <a class="btn" id="voice-btn" href="#feedback" target="_blank" rel="noopener">Record a voice note</a>
+    <button class="btn outline" type="button" data-feedback="end">Type it instead</button>
+  </div>
+  <p class="fineprint" id="voice-note"></p>
+  <p class="fineprint">Optional. We use answers only for this course project and quote them without names.</p>
+</div></section>
+
+<footer>LeakProof prototype v0.2 · Usable Security and Privacy course project · All data is simulated</footer>
+
+<script>
+window.LEAKPROOF_CONFIG = { tallyFormId: "{{TALLY_FORM_ID}}", voiceUrl: "{{VOICE_URL}}", whatsapp: "{{WHATSAPP}}" };
+</script>
+<script>
+{{LOGIC}}
+</script>
+<script>
+{{APP}}
+</script>

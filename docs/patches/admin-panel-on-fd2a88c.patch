@@ -1,0 +1,1384 @@
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/CLAUDE.md vm/CLAUDE.md
+--- base/CLAUDE.md	2026-11-14 17:55:42
++++ vm/CLAUDE.md	2026-11-14 18:13:56
+@@ -36,9 +36,9 @@
+ src/exam.mjs        pipeline: submit, seal, cards, release gates, copies, answer keys, trace
+ src/crypto.mjs      AES-256-GCM, scrypt, Shamir 3-of-5 over GF(2^521-1), HMAC streams
+ src/log.mjs         keyed hash-chained log      src/db.mjs   SQLite schema     src/config.mjs  env config
+-public/             browser client (index.html, app.js, styles.css)
++public/             browser client (index.html, app.js, styles.css; admin.js is loaded only for admins)
+ tests/              node:test suites; names start with SR*/FCS-*/S* = the requirement or fix they prove
+-scripts/            official-setup.mjs (creates the official exam and accounts)
++scripts/            official-setup.mjs (creates the official exam and accounts), make-admin.mjs (the only way an admin account comes to exist)
+ deploy/             preflight, install, release, rollback, health (watchdog), backup, demo-*, make-package, smoke, Caddyfile, units, firewall
+ docs/               design (11, 12), OPERATIONS.md, TESTERS.template.md     logs/  vulnerabilities.csv
+ .github/            CI workflow (tests, secrets scan, claims check)
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/COORDINATION.md vm/COORDINATION.md
+--- base/COORDINATION.md	2026-11-14 17:26:23
++++ vm/COORDINATION.md	2026-11-14 18:13:56
+@@ -35,6 +35,8 @@
+ | todo | Official exam night (25 Nov): `deploy/enable-official.sh`, `deploy/official-init.sh` | owner |
+ 
+ ## Decisions (newest first)
++- 2026-11-14 — Admin panel added on the owner's request (reverses the "no admin account" part of decision A4; see docs/DECISIONS.md G1). Admins are
++  created only by `scripts/make-admin.mjs` / `deploy/make-admin.sh`, never over HTTP; no exam capability; every action logged. SR16, tests A1-A12. — laptop-build
+ - 2026-11-14 — Demo credentials for each role: a separate `demo` instance (port 7443) in official mode with 3 pods
+   of 8 accounts (2 setters, exam cell, 5 key holders), restored nightly from a golden snapshot so the posted
+   credentials stay valid; practice stays self-registration with the fixed course code `LEAKPROOF-G19`.
+@@ -53,6 +55,7 @@
+ - The previous shared sudo password was pasted in a chat: change it with `passwd`.
+ 
+ ## Changelog / handoffs (newest first)
++- 2026-11-14 — Admin panel (public/admin.js, six /api/admin/* routes, scripts/make-admin.mjs, deploy/make-admin.sh, SR16); 119 tests green in a scratch copy; NOT yet applied to this repo. — laptop-build
+ - 2026-11-14 — Round 5 complete (see Decisions). 96 tests pass on the VM copy; not yet deployed (needs sudo). — laptop-build
+ - 2026-11-14 — Working app replaces the scaffold (tag `scaffold-v0`). — laptop-build
+ - 2026-11-14 — VM bootstrapped (Node 22, Caddy, leakproof user, keys, systemd). — opus-setup
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/README.md vm/README.md
+--- base/README.md	2026-11-14 17:44:08
++++ vm/README.md	2026-11-14 18:13:56
+@@ -9,7 +9,7 @@
+ ## Run locally
+ ```bash
+ npm run practice     # http://127.0.0.1:8080, course code USS-PRACTICE
+-npm test             # 107 tests: crypto, pipeline, access control, sessions, inputs, DoS, hardening, round-5 fixes
++npm test             # 119 tests: crypto, pipeline, access control, sessions, inputs, DoS, hardening, round-5 fixes, admin panel
+ ```
+ 
+ ## Deploy (course VM: Ubuntu 24.04, Node 22.5+, Caddy)
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/SECURITY.md vm/SECURITY.md
+--- base/SECURITY.md	2026-11-14 17:31:59
++++ vm/SECURITY.md	2026-11-14 18:26:34
+@@ -23,6 +23,7 @@
+ | SR13 | The service says when it is not sound | `/healthz` runs `SELECT 1` and a `quick_check` (cached 60 s) and answers 503 with a reason on failure; at start-up a failed `quick_check` or a broken log chain keeps the process up but answers 503 everywhere, so a crash loop does not hide the problem; the database waits at most 1 s for a lock | `R5-S3 /healthz is deep…`, `R5-S3 quick_check runs at most once a minute…`, `R5-S3 a broken log chain at start-up…`, `R5-S4 the database waits…` |
+ | SR14 | Memory and log growth are bounded | A reprint adds a log row only for the first 3 fetches of a seat (the counter keeps counting; card fetch is logged once per slot); at most 200 opened papers stay in memory, the oldest locks again (like a restart, logged), and a paper idle for 6 h locks again | `R5-S2 a seat can be reprinted…`, `S3 the public log returns…`, `R5-S10 at most 200 papers…` |
+ | SR15 | Behaviour is chosen by `LP_MODE`, not by a name | `LP_MODE` (`practice` or `official`) decides routes and rules and wins over `LP_INSTANCE`, which is only the instance name (the old way to pick the mode when `LP_MODE` is unset); `official-setup.mjs --out` writes credentials to a 0600 file instead of stdout, `--demo` skips the forced change | `R5-S13 LP_MODE decides behaviour…`, `R5-S14 official-setup --out…`, `R5-S14 official-setup --demo…`, `S11 official-setup marks…` |
++| SR16 | The operator can see and remove abusers without gaining access to the exam | An admin is a normal account with a flag that **only** `scripts/make-admin.mjs` (run on the VM through `deploy/make-admin.sh`) can set: no HTTP route, sign-up field or API can create or promote one, and the script creates a new dedicated account that must choose its own passphrase before any admin page; reserved names (`system`, `operator`, `admin`, `root`, `administrator`) are blocked at registration and in `make-admin`; the six `/api/admin/*` routes are in the one route table and answer **404** to everyone who is not an admin (401 when not logged in); an admin holds **no exam capability** — it cannot call `/api/practice/reset` or any setter/viewer route, so questions, key cards, copies and seals stay 404; the panel shows account metadata (username, name, sign-up and last-login network address in practice mode only — official accounts store no network address, counts), current failed-login lockouts and the whole log; query parameters are length-capped and control-character–rejected so hostile input cannot fork log queries or cause 500s; **disable** needs a reason, deletes the account's sessions at once, blocks login and recovery with a message shown only after the correct passphrase (so it reveals nothing about other accounts) and is reversible; **delete** (practice only) needs the username typed, removes the account and its practice exams and keeps the log; admins cannot be disabled or deleted from the panel, nor can an admin act on themselves or on a simulated setter; every admin action is a keyed-chain log entry under exam id `admin` (never on a public log) and may carry the target's username there, nowhere else; that log append is atomic (`BEGIN IMMEDIATE` wraps read-last + insert) so concurrent admin actions cannot fork the chain; `make-admin` runs with `maintenance: true` so it never interrupts an open release while creating or revoking; an admin session idles out after 10 minutes; the admin code is a separate file served to everyone but only loaded for admins | `A1 [SR16]…`, `A2 [SR16]…`, `A3 [SR16]…`, `A4 [SR16]…`, `A5 [SR16]…`, `A6 [SR16]…`, `A7 [SR16]…`, `A8 [SR16]…`, `A9 [SR16]…`, `A10 [SR16]…`, `A11 [SR16]…`, `A12 [SR16]…`, `A13 [SR16]…`, `A14 [SR16]…`, `A15 [SR16]…`, `A16 [SR16]…`, `A17 [SR16]…`, `A18 [SR16]…`, `A19 [SR16]…`, `A20 [SR16]…`, `A21 [SR16]…` |
+ 
+ ## 2. Lessons from FCS Group 1 and Group 2
+ 
+@@ -32,7 +33,7 @@
+ |---|---|---|---|
+ | Accounts created with no verification; bot sign-ups (G1, 4 reports) | Authentication / abuse | Practice registration needs the course code from the guide; at most 30 successful sign-ups per client per day (failed attempts do not count, so a shared hostel or lab address is not locked out) and 2000 accounts in total; official accounts are pre-created only; no email is used, so no one can squat someone else's address | `FCS-G1 no unverified mass sign-up…`, `S8 shared networks…` |
+ | No forgot-password path (G1) | Availability of the account | A one-time recovery code is shown with the passphrase; using it sets a new passphrase and signs out every session; the code works once even if two requests race | `FCS-G1 no forgotten-passphrase…`, `S16 recovery codes are single-use…` |
+-| Search endpoint leaked every user's id, email and role (G1) | Information disclosure | No user list or search exists; responses are built from explicit fields; the public log has no names | `FCS-G1 no user directory…`, `SR6 the log head…` |
++| Search endpoint leaked every user's id, email and role (G1) | Information disclosure | No ordinary user can list or search accounts (404 on every such route); only the operator's admin routes do, and they are 404 for everyone else (SR16); responses are built from explicit fields; the public log has no names | `FCS-G1 no user directory…`, `SR6 the log head…` |
+ | No limit on API requests; brute force possible (G1) | Missing rate limit | Every API route is rate-limited per client (429 with the real `Retry-After`, not 503 as G2 did); login, register, recover share a 30/min bucket; the public check-head has its own | `FCS-G1/G2 rate limits…`, `S8 shared networks…`, `S16 Retry-After…` |
+ | TCP connection flood took the site down (G1 and G2) | Denial of service | Slow-header timeout checked every second; short keep-alive; password hashing off the main thread; a per-client socket cap in the app for direct runs (behind Caddy, the firewall's `connlimit` and Caddy's timeouts do this, see section 5); the public log returns at most 200 entries and re-verifies the chain (a full walk) at most every 30 s; log growth is capped: one row per card fetch, three per seat reprint | `FCS-G1/G2 connection flood…`, `FCS-G1/G2 a login flood…`, `S3 the public log returns…`, `R5-S2 a seat can be reprinted…` |
+ | "End-to-end encrypted" chat was not (G1, 3 reports) | Over-claiming | Every claim in sections 1 and 2 has a test; what is checked another way is in section 5; limits are in section 4 | this file |
+@@ -49,6 +50,10 @@
+ Avoided their mistakes: Group 1 committed its TLS private key and a database dump, and regenerated its keys silently; here `data/`, `*.key` and `*.db` are git-ignored, keys are generated on the server at install time, and the server will not start with a missing key over existing data. Group 2's provisioning left the operator with working credentials for every account; ours must be replaced at first login.
+ 
+ ## 4. Limits we state openly
++
++- **The operator can see accounts.** The admin panel shows each account's username, display name, the network address it signed up and last logged in from, and activity counts and times. It never shows a passphrase, recovery code, question, paper or key card, and it cannot approve, seal, print or read an exam. Practice testers are told this in the user guide.
++- **An admin can disable any ordinary account, including a key holder on the official instance, which could stop a release.** Disabling needs a reason, is logged in the keyed chain, and is reversible; the operator can also run `scripts/make-admin.mjs --revoke`. We state it rather than hide it: whoever runs the VM can already stop the service.
++- **A stolen admin session would see the same metadata** and could disable accounts for up to 10 idle minutes; every action is logged and none can reach the paper.
+ 
+ - The server process handles the plaintext paper for milliseconds at sealing and while it is open after release. The exam cell sees the paper when it prints. A malicious VM operator could serve altered JavaScript.
+ - Three colluding key holders can open the paper early; the log shows it.
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/USER_GUIDE.md vm/USER_GUIDE.md
+--- base/USER_GUIDE.md	2026-11-14 17:23:44
++++ vm/USER_GUIDE.md	2026-11-14 18:13:56
+@@ -74,7 +74,8 @@
+ 
+ - **One refusal closes the request.** One key holder can stop a release with **Refuse with card N**. The exam cell then requests again.
+ - **A verified card cannot be shown again.** The server deletes its copy at verification and says "This card is already verified. The server no longer holds a copy, so it cannot be shown again." Keep the file and the passphrase.
+-- **Usernames are unique, and sign-up says so.** There is no user list and no email, so names are not secret.
++- **Usernames are unique, and sign-up says so.** There is no public user list and no email, so names are not secret.
++- **The operator can see accounts.** An administrator (a person from the team, made on the server) can see your username, display name, the network address you signed up and logged in from, and when you were active. They cannot see your passphrase, your questions, the paper or any key card, and they cannot approve or print. They can disable an account that is being abused; you would then see "This account has been disabled by an administrator." Every admin action is written to the log. Please do not report the admin panel's existence as a bug; do report a way to reach it, or to become an admin, without the operator's help.
+ - **A server restart re-locks the paper.** The open paper lives only in memory. After a restart the old request shows "The server restarted while this request was open, so it was closed. Request release again." Three cards must approve again.
+ - **Idle sign-out after 30 minutes.** The pages that refresh themselves do not count as activity. You are also signed out 8 hours after you logged in. The message is "You were signed out: 30 minutes without activity, the 8-hour session limit, or your passphrase was changed elsewhere. Log in to continue where you were."
+ - **Rate limits.** Examples of the messages: "Too many requests. Wait a minute and try again.", "Too many attempts from this network. Wait a minute.", "Too many attempts. Wait a minute.", "Too many checks from this network. Wait a minute.". Five wrong passphrases in a row for one username from one network give "Too many wrong attempts. Try again in N seconds.", and the wait grows up to 15 minutes. A correct log-in clears it. A network can create 30 practice accounts a day ("This network has created 30 practice accounts today. Try again later."). One account can make 10 practice exams.
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/deploy/make-admin.sh vm/deploy/make-admin.sh
+--- base/deploy/make-admin.sh	1970-01-01 05:30:00
++++ vm/deploy/make-admin.sh	2026-11-14 18:07:59
+@@ -0,0 +1,37 @@
++#!/usr/bin/env bash
++# Create, list or revoke an administrator for one instance. M2 runs it:
++#   sudo bash deploy/make-admin.sh practice create alice-admin [--out /root/admin-slip.md]
++#   sudo bash deploy/make-admin.sh practice list
++#   sudo bash deploy/make-admin.sh practice revoke alice-admin
++# What it changes: runs scripts/make-admin.mjs against /var/lib/leakproof/<instance> as the leakproof user, with that instance's keys
++# copied to a tmpfs directory for the duration of the run only. Safe while the service runs. create writes the credentials to --out
++# (default /root/admin-<name>-<time>.md, root, 0600) and prints NO passphrase. The admin must choose their own passphrase at first
++# login. Admins exist only this way: no web page or API can grant the role.
++# Undo: revoke. The admin panel is at https://<VM>:8443/#/admin once logged in as an admin.
++set -euo pipefail
++case "${1:-}" in --help|-h) sed -n '2,/^set -/{/^set -/!p;}' "$0"; exit 0 ;; esac
++[ "$(id -u)" -eq 0 ] || { echo "run with sudo" >&2; exit 2; }
++INST="${1:?usage: make-admin.sh <practice|demo|official> <create|list|revoke> [username] [--out FILE]}"
++ACT="${2:?usage: make-admin.sh <instance> <create|list|revoke> [username] [--out FILE]}"
++case "$INST" in practice|demo|official) ;; *) echo "instance must be practice, demo or official" >&2; exit 2 ;; esac
++MODE=practice; [ "$INST" = practice ] || MODE=official
++CUR=/srv/leakproof/current; DATA="/var/lib/leakproof/$INST"
++[ -f "$CUR/scripts/make-admin.mjs" ] || { echo "this release has no scripts/make-admin.mjs: deploy a newer tag" >&2; exit 1; }
++[ -f "$DATA/leakproof.db" ] || { echo "$DATA has no database yet: start the instance once first" >&2; exit 1; }
++W="$(mktemp -d /run/lp-admin.XXXXXX)"; trap 'rm -rf "$W"' EXIT
++chown leakproof:leakproof "$W"; chmod 0700 "$W"; install -d -o leakproof -g leakproof -m 0700 "$W/keys"
++for k in server.key log.key; do install -o leakproof -g leakproof -m 0400 "/etc/leakproof/$INST/$k" "$W/keys/$k"; done
++run() { runuser -u leakproof -- env LP_MODE="$MODE" LP_INSTANCE="$INST" LP_DATA_DIR="$DATA" LP_KEY_DIR="$W/keys" \
++  node --disable-warning=ExperimentalWarning "$CUR/scripts/make-admin.mjs" "$@"; }
++case "$ACT" in
++  list) run --list ;;
++  revoke) run --revoke "${3:?username}" ;;
++  create)
++    NAME="${3:?username}"; shift 3
++    OUTF="/root/admin-$NAME-$(date +%Y%m%d-%H%M%S).md"
++    while [ $# -gt 0 ]; do case "$1" in --out) OUTF="${2:?}"; shift 2 ;; *) echo "unknown option $1" >&2; exit 2 ;; esac; done
++    run "$NAME" --out "$W/slip.md"
++    install -m 0600 -o root -g root "$W/slip.md" "$OUTF"
++    echo "Credentials: $OUTF (root only). Give them to the administrator in person; they must set their own passphrase at first login." ;;
++  *) echo "action must be create, list or revoke" >&2; exit 2 ;;
++esac
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/docs/DECISIONS.md vm/docs/DECISIONS.md
+--- base/docs/DECISIONS.md	2026-11-14 17:54:17
++++ vm/docs/DECISIONS.md	2026-11-14 18:13:56
+@@ -25,7 +25,7 @@
+ 
+ **A4. Capabilities, not roles: `submit`, `run`, `hold`, `print` in one table; a missing capability answers 404, not 403.**
+ Why: one rule to test (route x capability matrix), and no probing of which ids exist. *Rejected:* a role hierarchy and an admin
+-account (the FCS groups' admin roles produced most of their argument-heavy bug reports).
++account (the FCS groups' admin roles produced most of their argument-heavy bug reports). **Revised 14 Nov (A4a): an admin panel was added on the owner's request.**
+ 
+ **A5. Official: one key card per account. Practice: one tester holds all five cards (labelled).** Why: a lone classmate must be able
+ to run the whole flow alone; the real separation of duties is only meaningful in official/demo. *Rejected:* simulating other
+@@ -198,3 +198,16 @@
+ 
+ - 2026-11-14 (late): `LP_MODE` unknown values refuse to start; `busy_timeout` 5 s to 1 s; ZWJ/ZWNJ allowed; `official-setup` rejects upper-case usernames; start-over button in the
+   release watch (a lone practice tester could otherwise sit behind a lockout for 15 minutes).
++
++## G. Admin panel (14 Nov, owner's request; revises the "no admin account" part of A4)
++
++**G1. A site-wide admin panel exists: overview, users, and the whole log, with disable and delete.** Why: during 18 to 25 Nov the operator must be able to
++see abuse (mass sign-ups from one address, password guessing, a classmate probing accounts) and remove it without ssh and SQL, as Vajra Kavach and Meridian did.
++*What the FCS groups' admin roles got wrong, and what we did instead:* G2's admin role was self-registrable, so classmates filed "admin takeover" reports
++(rebutted, but costly); G1's admin was suspended mid-test and the site looked broken. Ours: **no admin can be created or promoted over HTTP**, only by
++`scripts/make-admin.mjs` on the VM; the admin is a new dedicated account that must set its own passphrase first; the routes are 404 for everyone else;
++an admin has **no capability on any exam**, so paper, questions, cards and keys stay out of reach (P1 is untouched); admins cannot be disabled or deleted from
++the panel; every action is in the keyed log; the admin idles out after 10 minutes. *Rejected:* an admin who can reset passphrases (would let the operator
++impersonate users: users use their recovery code), admin approval of releases, a role hierarchy, and a "sweep by IP" endpoint (the panel loops over the shown accounts
++instead, so the server has one rule to test). *Cost:* about 330 new lines and a new attack surface in the freeze week; mitigated by 12 tests (A1 to A12, four mutation-checked)
++and by there being nothing to attack until the operator creates an admin. *Stored:* sign-up and last-login network address (admin-visible only, stated to testers).
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/docs/OPERATIONS.md vm/docs/OPERATIONS.md
+--- base/docs/OPERATIONS.md	2026-11-14 17:31:04
++++ vm/docs/OPERATIONS.md	2026-11-14 18:13:56
+@@ -354,3 +354,17 @@
+ 
+ `deploy/harden-ssh.sh` makes SSH key-only. It prints the change first, refuses without an authorised key for your user, validates with
+ `sshd -t` and `sshd -T`, and reloads (your open session survives). Revert: `--revert`.
++
++## 20. Admin panel (see abuse, remove accounts)
++Admins exist only by this command (M2, on the VM); no web page can create one:
++```
++sudo bash deploy/make-admin.sh practice create <username>     # writes /root/admin-<username>-<time>.md (0600); prints no passphrase
++sudo bash deploy/make-admin.sh practice list
++sudo bash deploy/make-admin.sh practice revoke <username>     # ends their sessions at once
++```
++Give the slip to the person in hand; at first login they must choose their own passphrase. Then `https://<VM>:8443/#/admin`: **Overview** (counters, log integrity,
++repeated failed logins), **Users** (search by name or network address; Disable with a reason; Delete on practice only; "Disable all shown" for a bot sweep),
++**Log** (whole site, filter by exam, person, event; CSV download). It never shows passphrases, questions, papers or key cards. Every action is logged under exam id `admin`.
++Practice and official have separate admins. Do not make an admin on `official` unless you need one on exam night (disabling a key holder there could stop a release).
++Undo anything: `Enable` in the panel, or `revoke`. After the freeze admins can still be created and revoked (it is data, not code).
++
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/public/admin.js vm/public/admin.js
+--- base/public/admin.js	1970-01-01 05:30:00
++++ vm/public/admin.js	2026-11-14 18:12:07
+@@ -0,0 +1,168 @@
++// Admin panel: loaded only for admins. Metadata and the log; never paper, questions or keys. Rendering uses textContent only.
++import { h, api, page, status, errBox, action, field, when, toast, S, go, poll, download } from '/app.js';
++
++const SECTIONS = [['overview', 'Overview'], ['users', 'Users'], ['log', 'Log']];
++const ago = (t) => (t ? when(t) : 'never');
++const ipBtn = (ip, onPick) => (ip ? h('button', { class: 'link', title: 'Show every account from this address', onclick: () => onPick(ip) }, ip) : h('span', { class: 'muted' }, 'unknown'));
++// A spreadsheet treats a cell starting with = + - @ as a formula: prefix those so an exported name cannot run one.
++const csvCell = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
++const detailText = (d) => Object.entries(d || {}).filter(([k]) => !(k === 'target' && d.name)).map(([k, v]) => `${k === 'name' ? 'account' : k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · ');
++const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
++const scroll = (table) => h('div', { class: 'scroll-x' }, table);
++
++export async function adminPage(section) {
++  const cur = SECTIONS.some(([k]) => k === section) ? section : 'overview';
++  const body = h('div', { id: 'tabpanel', role: 'tabpanel', 'aria-labelledby': `tab-${cur}` });
++  const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Admin sections' },
++    SECTIONS.map(([k, label]) => h('button', { role: 'tab', id: `tab-${k}`, 'aria-selected': String(k === cur), 'aria-controls': 'tabpanel', onclick: () => go(`#/admin/${k}`) }, label)));
++  page(h('h1', {}, 'Admin'),
++    h('p', { class: 'muted small' }, 'Accounts, activity and the full log. Question text, papers and key cards are never shown here, and you cannot approve or print. Every action you take is written to the log. This screen signs you out after 10 idle minutes.'),
++    tabs, body);
++  await ({ overview, users, log: logTab }[cur])(body);
++}
++
++// ---------- overview ----------
++async function overview(body) {
++  const stat = (label, value, note) => h('div', { class: 'stat' }, h('div', { class: 'stat-n', text: String(value) }), h('div', { class: 'small', text: label }), note ? h('div', { class: 'small muted', text: note }) : null);
++  const box = h('div');
++  body.append(box);
++  const draw = (o) => box.replaceChildren(
++    h('div', { class: 'stats' },
++      stat('Accounts', o.accounts, `limit ${o.cap}`), stat('New in 24 h', o.newToday), stat('Signed in now', o.activeSessions),
++      stat('Disabled', o.disabled), stat('Exams', o.exams.practice + o.exams.official, `${o.exams.practice} practice, ${o.exams.official} official`), stat('Log entries', o.logEntries)),
++    h('div', { class: 'card' }, h('div', { class: 'spread' }, h('h2', {}, 'Log integrity'),
++      o.chain.ok ? status('ok', `Chain intact · ${o.chain.entries} entries`) : status('bad', `Chain BROKEN at entry ${o.chain.brokenAt}`)),
++      h('p', { class: 'small muted' }, `Last full check ${when(o.chain.checkedAt)} (it re-runs at most every 30 seconds). Latest hash: `, h('code', { text: o.head }))),
++    h('div', { class: 'card' }, h('h2', {}, 'Repeated failed attempts (last 24 h)'),
++      o.lockouts.length ? scroll(h('table', {}, h('thead', {}, h('tr', {}, ['What', 'Account tried', 'From', 'Attempts', 'State'].map((t) => h('th', {}, t)))),
++        h('tbody', {}, o.lockouts.map((l) => h('tr', {}, h('td', {}, l.kind), h('td', { text: l.user }), h('td', { text: l.ip }), h('td', {}, String(l.attempts)),
++          h('td', {}, l.until > o.serverNow ? status('wait', `locked ${Math.ceil((l.until - o.serverNow) / 1000)} s`) : h('span', { class: 'muted' }, `last try ${when(l.at)}`)))))))
++        : h('p', { class: 'muted' }, 'None. (Counted since the server last started; a correct login clears that account\'s count.)')),
++    h('div', { class: 'card' }, h('h2', {}, 'Recent admin actions'),
++      o.recent.length ? h('ul', { class: 'list' }, o.recent.map((e) => h('li', {}, h('b', { text: e.action }), ' by ', e.actor, ' · ', when(e.at), h('div', { class: 'small muted', text: detailText(e.detail) }))))
++        : h('p', { class: 'muted' }, 'Nothing yet.')));
++  draw(await api('GET', '/api/admin/overview'));
++  poll(async () => draw(await api('GET', '/api/admin/overview', null, { background: true })), 15000);
++}
++
++// ---------- users ----------
++async function users(body) {
++  const q = h('input', { type: 'search', placeholder: 'Username, name or network address', maxlength: 64, 'aria-label': 'Search accounts' });
++  const err = errBox(), summary = h('p', { class: 'small muted', 'aria-live': 'polite' });
++  const tbody = h('tbody'), more = h('button', {}, 'Load more'), bulk = h('div');
++  let query = '', offset = 0, shown = [];
++  const find = h('button', { class: 'primary', type: 'submit' }, 'Search');
++  const form = h('form', { class: 'row' }, h('div', { class: 'grow' }, q), find, h('button', { type: 'button', onclick: () => { q.value = ''; load(true); } }, 'Clear'));
++  form.addEventListener('submit', (e) => { e.preventDefault(); load(true); });
++  const pickIp = (ip) => { q.value = ip; load(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
++
++  async function load(fresh) {
++    err.textContent = '';
++    if (fresh) { offset = 0; shown = []; tbody.replaceChildren(); query = q.value.trim(); }
++    try {
++      const r = await api('GET', `/api/admin/users?q=${encodeURIComponent(query)}&offset=${offset}&limit=50`);
++      shown.push(...r.users); offset = r.next ?? offset + r.users.length;
++      for (const u of r.users) tbody.append(...userRows(u));
++      summary.textContent = `${shown.length} of ${plural(r.total, 'account')}${query ? ` matching "${query}"` : ''}.`;
++      more.hidden = r.next === null;
++      bulk.replaceChildren(...(query && shown.some((u) => !u.admin && !u.disabled) && r.next === null ? [bulkForm()] : []));
++    } catch (e) { err.textContent = e.message; }
++  }
++
++  function userRows(u) {
++    const panel = h('tr', { hidden: true }), row = h('tr');
++    const cell = (...k) => h('td', {}, ...k);
++    const open = (kind) => { panel.hidden = false; panel.replaceChildren(h('td', { colspan: 6 }, kind === 'disable' ? disableForm(u, panel) : deleteForm(u, panel))); panel.querySelector('input')?.focus(); };
++    const acts = u.admin ? [h('span', { class: 'muted small' }, 'managed on the server')] : [
++      u.disabled ? action(h('button', { class: 'link' }, 'Enable'), err, async () => { await api('POST', `/api/admin/users/${u.id}/enable`, {}); toast(`${u.username} enabled`); load(true); })
++        : h('button', { class: 'link danger-link', onclick: () => open('disable') }, 'Disable…'),
++      S.me.instance === 'practice' ? h('button', { class: 'link danger-link', onclick: () => open('delete') }, 'Delete…') : null];
++    row.append(
++      cell(h('b', { text: u.username }), u.admin ? h('span', { class: 'pill' }, 'admin') : null, h('div', { class: 'small muted', text: u.display })),
++      cell(h('div', { class: 'small', text: ago(u.created) }), ipBtn(u.regIp, pickIp)),
++      cell(h('div', { class: 'small', text: ago(u.lastLogin) }), u.lastIp && u.lastIp !== u.regIp ? ipBtn(u.lastIp, pickIp) : null),
++      cell(h('div', { class: 'small', text: `${plural(u.events, 'event')} · ${plural(u.exams, 'exam')} · ${plural(u.sessions, 'session')}` }),
++        u.sameNetwork > 1 ? h('button', { class: 'link', onclick: () => pickIp(u.regIp) }, `${u.sameNetwork} accounts from this address`) : null),
++      cell(u.disabled ? status('bad', 'Disabled') : status('ok', 'Active')),
++      cell(h('div', { class: 'row tight' }, acts)));
++    return [row, panel];
++  }
++  const done = (panel, msg) => { toast(msg); panel.hidden = true; load(true); };
++  function disableForm(u, panel) {
++    const reason = h('input', { maxlength: 200, placeholder: 'Reason (written to the log)', 'aria-label': `Reason for disabling ${u.username}` }), e = errBox();
++    const ok = action(h('button', { class: 'danger' }, `Disable ${u.username}`), e, async () => {
++      await api('POST', `/api/admin/users/${u.id}/disable`, { reason: reason.value }); done(panel, `${u.username} disabled and signed out`);
++    });
++    return h('div', { class: 'warn' }, h('p', {}, 'Signs them out now and blocks login and recovery. Their data stays and you can enable them again.'),
++      h('div', { class: 'row' }, h('div', { class: 'grow' }, reason), ok, h('button', { onclick: () => { panel.hidden = true; } }, 'Cancel')), e);
++  }
++  function deleteForm(u, panel) {
++    const typed = h('input', { autocomplete: 'off', placeholder: u.username, 'aria-label': `Type ${u.username} to confirm` }), e = errBox();
++    const ok = action(h('button', { class: 'danger' }, 'Delete for good'), e, async () => {
++      const r = await api('POST', `/api/admin/users/${u.id}/delete`, { confirm: typed.value }); done(panel, `${u.username} deleted (${r.exams} exam${r.exams === 1 ? '' : 's'} removed)`);
++    });
++    return h('div', { class: 'warn' }, h('p', {}, h('b', {}, 'Permanent. '), `Removes the account, its practice exams and everything in them. The log keeps the history. Type "${u.username}" to confirm.`),
++      h('div', { class: 'row' }, h('div', { class: 'grow' }, typed), ok, h('button', { onclick: () => { panel.hidden = true; } }, 'Cancel')), e);
++  }
++  // A sweep: disable everyone the current search shows (typically one address that signed up in bulk).
++  function bulkForm() {
++    const targets = shown.filter((u) => !u.admin && !u.disabled);
++    const reason = h('input', { maxlength: 200, placeholder: 'Reason (written to the log for each account)', 'aria-label': 'Reason for disabling all shown' }), e = errBox();
++    const sweep = action(h('button', { class: 'danger' }, `Disable all ${targets.length} shown`), e, async () => {
++      let n = 0;
++      for (const u of targets) { await api('POST', `/api/admin/users/${u.id}/disable`, { reason: reason.value }); n++; }
++      toast(`${n} accounts disabled`); load(true);
++    }, { confirm: `Click again to disable ${targets.length} accounts` });
++    return h('div', { class: 'warn' }, h('b', {}, 'Sweep. '), `Disable all ${targets.length} active accounts in this list.`, h('div', { class: 'row' }, h('div', { class: 'grow' }, reason), sweep), e);
++  }
++
++  more.addEventListener('click', () => load(false));
++  body.append(h('div', { class: 'card' }, form, summary, err),
++    h('div', { class: 'card' }, scroll(h('table', { class: 'users' }, h('thead', {}, h('tr', {}, ['Account', 'Registered', 'Last login', 'Activity', 'Status', ''].map((t) => h('th', {}, t)))), tbody)),
++      h('div', { class: 'row' }, more)), bulk);
++  await load(true);
++}
++
++// ---------- the full log ----------
++async function logTab(body) {
++  const exam = h('input', { placeholder: 'Exam id, or "admin"', maxlength: 32, 'aria-label': 'Filter by exam id' });
++  const actor = h('input', { placeholder: 'Username (or "system")', maxlength: 40, 'aria-label': 'Filter by username' });
++  const act = h('input', { placeholder: 'Event, e.g. card.verified', maxlength: 40, 'aria-label': 'Filter by event' });
++  const err = errBox(), chain = h('div'), summary = h('p', { class: 'small muted', 'aria-live': 'polite' });
++  const tbody = h('tbody'), older = h('button', {}, 'Load older entries');
++  let rows = [], next = null, filters = {};
++  const pick = (el, v) => { el.value = v; load(true); };
++  const form = h('form', { class: 'row' }, h('div', { class: 'grow' }, exam), h('div', { class: 'grow' }, actor), h('div', { class: 'grow' }, act),
++    h('button', { class: 'primary', type: 'submit' }, 'Filter'), h('button', { type: 'button', onclick: () => { exam.value = actor.value = act.value = ''; load(true); } }, 'Clear'));
++  form.addEventListener('submit', (e) => { e.preventDefault(); load(true); });
++
++  async function load(fresh) {
++    err.textContent = '';
++    if (fresh) { rows = []; next = null; tbody.replaceChildren(); filters = { exam: exam.value.trim(), actor: actor.value.trim(), action: act.value.trim() }; }
++    const p = new URLSearchParams({ limit: '100' });
++    for (const [k, v] of Object.entries(filters)) if (v) p.set(k, v);
++    if (!fresh && next) p.set('before', String(next));
++    try {
++      const r = await api('GET', `/api/admin/log?${p}`);
++      rows.push(...r.entries); next = r.next;
++      for (const e of r.entries) tbody.append(h('tr', {},
++        h('td', { class: 'small', text: when(e.at) }),
++        h('td', {}, e.actor && !e.actor.startsWith('(') && e.actor !== 'system' && e.actor !== 'operator' ? h('button', { class: 'link', onclick: () => pick(actor, e.actor) }, e.actor) : h('span', { class: 'muted', text: e.actor })),
++        h('td', { text: e.action }),
++        h('td', {}, e.examId ? h('button', { class: 'link', title: e.examId, onclick: () => pick(exam, e.examId) }, e.examId === 'admin' ? 'admin' : e.examId.slice(0, 8)) : h('span', { class: 'muted' }, '-')),
++        h('td', { class: 'small', text: detailText(e.detail) }), h('td', {}, h('code', { text: e.hash.slice(0, 10) }))));
++      chain.replaceChildren(r.chain.ok ? status('ok', `Chain intact · ${r.chain.entries} entries · checked ${when(r.chain.checkedAt)}`) : status('bad', `Chain BROKEN at entry ${r.chain.brokenAt}: the log was altered`));
++      summary.textContent = `Showing ${rows.length} entr${rows.length === 1 ? 'y' : 'ies'}, newest first (${r.total} in the whole log).`;
++      older.hidden = next === null;
++    } catch (e) { err.textContent = e.message; }
++  }
++  const csv = h('button', { onclick: () => {
++    const head = ['seq', 'time', 'actor', 'event', 'exam', 'details', 'hash'];
++    download('leakproof-log.csv', [head.join(','), ...rows.map((e) => [e.seq, new Date(e.at).toISOString(), e.actor, e.action, e.examId, detailText(e.detail), e.hash].map(csvCell).join(','))].join('\n'), 'text/csv');
++  } }, 'Download these rows (CSV)');
++  older.addEventListener('click', () => load(false));
++  body.append(h('div', { class: 'card' }, h('div', { class: 'spread' }, h('h2', {}, 'Site-wide log'), chain), form, summary, err),
++    h('div', { class: 'card' }, scroll(h('table', {}, h('thead', {}, h('tr', {}, ['When', 'Who', 'Event', 'Exam', 'Details', 'Hash'].map((t) => h('th', {}, t)))), tbody)),
++      h('div', { class: 'row' }, older, csv)));
++  await load(true);
++}
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/public/app.js vm/public/app.js
+--- base/public/app.js	2026-11-14 17:33:02
++++ vm/public/app.js	2026-11-14 18:20:11
+@@ -152,6 +152,7 @@
+   document.getElementById('instance').textContent = { official: 'Official', practice: 'Practice', demo: 'Demo' }[S.me?.name || S.name] || '';
+   document.getElementById('nav').replaceChildren(...(S.me ? [
+     h('span', { class: 'muted small who', text: S.me.display }),
++    ...(S.me.admin ? [h('a', { class: 'small', href: '#/admin' }, 'Admin')] : []),
+     h('a', { class: 'small', href: '#/passphrase' }, 'Change passphrase'),
+     h('button', { class: 'link', onclick: async () => { await api('POST', '/api/logout').catch(() => {}); S.me = null; S.csrf = null; store.set(BACK, null); renderHeader(); go('#/login'); } }, 'Log out'),
+   ] : []));
+@@ -327,7 +328,7 @@
+   const me = S.me;
+   if (!me) return;
+   const err = errBox();
+-  const newBtn = me.instance === 'practice' ? action(h('button', {}, 'Start a fresh practice exam'), err, async () => {
++  const newBtn = me.instance === 'practice' && !me.admin ? action(h('button', {}, 'Start a fresh practice exam'), err, async () => {
+     const r = await api('POST', '/api/practice/reset'); location.hash = `#/exam/${r.examId}`;
+   }) : null;
+   const waitBox = h('div', { 'aria-live': 'polite' }, waitingList(me));
+@@ -796,6 +797,7 @@
+   banner.textContent = 'Practice: you play every role and hold all 5 key cards. In a real exam these are different people. Data here is disposable.';
+   if (S.me.mustChange) return passphrasePage(true);
+   if (parts[0] === 'passphrase') return passphrasePage(false);
++  if (parts[0] === 'admin' && S.me.admin) return (await import('/admin.js')).adminPage(parts[1]); // loaded only for admins
+   if (parts[0] === 'exam' && parts[1]) return examPage(parts[1], parts[2]);
+   if (parts[0] === 'copy' && parts[1]) return copyPage(parts[1], parts[2]);
+   if (parts[0] === 'key' && parts[1]) return keyPage(parts[1], parts[2]);
+@@ -814,3 +816,6 @@
+ document.getElementById('skip')?.addEventListener('click', (e) => { e.preventDefault(); main.focus(); });
+ window.addEventListener('hashchange', route);
+ route();
++
++// Shared with admin.js, which is loaded only for admins.
++export { h, api, page, status, errBox, action, field, when, toast, S, go, poll, download };
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/public/help.html vm/public/help.html
+--- base/public/help.html	2026-11-14 17:32:57
++++ vm/public/help.html	2026-11-14 18:13:56
+@@ -79,6 +79,7 @@
+       <p>Please do not report these as bugs.</p>
+       <ul>
+         <li>A refusal by one key holder closes the release request. The exam cell requests again.</li>
++        <li>An administrator from the team can see account names, the network address you used and when you were active, and can disable an account that is being abused. They cannot see passphrases, questions, the paper or key cards. Please report a way to reach the admin pages without the operator's help, not their existence.</li>
+         <li>A verified card cannot be shown again. Keep the file and its passphrase.</li>
+         <li>A server restart locks the paper again and closes open requests.</li>
+         <li>You are signed out after 30 minutes without activity.</li>
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/public/styles.css vm/public/styles.css
+--- base/public/styles.css	2026-11-14 17:01:48
++++ vm/public/styles.css	2026-11-14 18:09:47
+@@ -147,3 +147,13 @@
+ .seats button.keybtn { min-height: 36px; font-size: .8rem; padding: 2px 6px; color: var(--muted); }
+ .paper ol.key { columns: 4 7ch; font-size: 1.1rem; font-weight: 600; padding-left: 2em; }
+ .warn[role=status] { margin: 0 0 12px; }
++
++/* Admin panel */
++.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
++.stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px; }
++.stat-n { font-size: 1.8rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
++.scroll-x { overflow-x: auto; }
++.grow { flex: 1 1 180px; min-width: 0; }
++.row.tight { gap: 4px; }
++button.danger-link { color: var(--bad); }
++table.users td { vertical-align: top; }
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/scripts/make-admin.mjs vm/scripts/make-admin.mjs
+--- base/scripts/make-admin.mjs	1970-01-01 05:30:00
++++ vm/scripts/make-admin.mjs	2026-11-14 18:22:24
+@@ -0,0 +1,54 @@
++// Create or remove an administrator account. This is the ONLY way an admin comes to exist: no HTTP route can grant it.
++//   node scripts/make-admin.mjs <username> [--name "Display name"] [--out creds.md]   create a new admin
++//   node scripts/make-admin.mjs --revoke <username>                                  turn an admin back into an ordinary account
++//   node scripts/make-admin.mjs --list                                               list admins
++// Run it through deploy/make-admin.sh on the VM (as the leakproof user, keys on tmpfs). The new admin must set their own passphrase at
++// first login, so the printed one (which the operator saw) stops working. --out writes it to a 0600 file instead of printing it.
++import fs from 'node:fs';
++import { loadConfig, loadKey } from '../src/config.mjs';
++import { openDb } from '../src/db.mjs';
++import { createApp } from '../src/app.mjs';
++
++const args = process.argv.slice(2);
++const opt = (name) => { const i = args.indexOf(name); return i < 0 ? null : (args[i + 1] ?? ''); };
++const usage = () => { console.error('usage: node scripts/make-admin.mjs <username> [--name "Display"] [--out file] | --revoke <username> | --list'); process.exit(2); };
++
++const config = loadConfig();
++const db = openDb(config.dataDir);
++const app = createApp({ db, config, maintenance: true, serverKey: loadKey(config.keyDir, 'server.key', db), logKey: loadKey(config.keyDir, 'log.key', db) });
++const admins = () => db.prepare('SELECT username, display, disabled, last_login FROM accounts WHERE is_admin = 1 ORDER BY created').all();
++
++if (args.includes('--list')) {
++  for (const a of admins()) console.log(`${a.username}\t${a.display}${a.disabled ? '\t(disabled)' : ''}\t${a.last_login ? new Date(a.last_login).toISOString() : 'never logged in'}`);
++  if (!admins().length) console.log('no administrators');
++} else if (args.includes('--revoke')) {
++  const name = opt('--revoke')?.toLowerCase();
++  if (!name || name.startsWith('--')) usage();
++  const row = db.prepare('SELECT id FROM accounts WHERE username = ? AND is_admin = 1').get(name);
++  if (!row) { console.error(`${name} is not an administrator`); process.exit(1); }
++  db.prepare('UPDATE accounts SET is_admin = 0 WHERE id = ?').run(row.id);
++  db.prepare('DELETE FROM sessions WHERE account_id = ?').run(row.id);
++  app.log.append('admin', 'operator', 'admin.revoked', { target: row.id, name });
++  console.log(`${name} is no longer an administrator`);
++} else {
++  const outAt = args.indexOf('--out'), nameAt = args.indexOf('--name');
++  const flagValues = new Set([outAt, nameAt].filter((i) => i >= 0).map((i) => i + 1)); // an absent flag must not exclude argument 0
++  const username = args.find((a, i) => !a.startsWith('--') && !flagValues.has(i))?.toLowerCase();
++  if (!username || !/^[a-z0-9][a-z0-9_.-]{2,31}$/.test(username) || username.startsWith('sim-')) {
++    console.error('username must be 3 to 32 lowercase letters, digits, dot, dash or underscore'); usage();
++  }
++  if (outAt >= 0 && (!args[outAt + 1] || args[outAt + 1].startsWith('--'))) usage();
++  if (['system', 'operator', 'admin', 'root', 'administrator'].includes(username)) { console.error(`${username} is reserved: pick a name such as ${username}-ops`); process.exit(1); }
++  if (db.prepare('SELECT 1 FROM accounts WHERE username = ?').get(username)) { console.error(`${username} already exists; admins are always new, dedicated accounts`); process.exit(1); }
++  const display = opt('--name') || 'Administrator';
++  const acc = await app.createAccount(username, display, { admin: true, mustChange: true });
++  app.log.append('admin', 'operator', 'admin.granted', { target: acc.id, name: username });
++  if (outAt >= 0) {
++    fs.writeFileSync(args[outAt + 1], `| username | passphrase | recovery code |\n|---|---|---|\n| ${username} | ${acc.passphrase} | ${acc.recovery} |\n`, { mode: 0o600 });
++    fs.chmodSync(args[outAt + 1], 0o600);
++    console.log(`Administrator ${username} created. Credentials written to ${args[outAt + 1]} (mode 0600).`);
++  } else {
++    console.log(`Administrator ${username} created.\n  passphrase: ${acc.passphrase}\n  recovery code: ${acc.recovery}\n  (first login asks for a new passphrase; this one then stops working)`);
++  }
++}
++db.close();
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/src/app.mjs vm/src/app.mjs
+--- base/src/app.mjs	2026-11-14 17:29:20
++++ vm/src/app.mjs	2026-11-14 18:25:25
+@@ -1,21 +1,23 @@
+ // The application: one route table, one middleware chain for every route.
+ //   rate limit -> session -> CSRF + origin -> capability (404 if none) -> body schema -> handler
+ import { rand, sha256, safeEqual, hashPassword, checkPassword, burnPasswordTime, generatePassphrase } from './crypto.mjs';
+-import { tx } from './db.mjs';
++import { tx, checkpoint } from './db.mjs';
+ import { makeLog } from './log.mjs';
+ import { makeExams, Refusal, MIN_VERIFIED } from './exam.mjs';
+ import { BANK, TOPICS } from './bank.mjs';
+ import { send, readJson, cookies, HttpError, makeLimiter, SECURITY_HEADERS } from './http.mjs';
+ 
+-const IDLE = 30 * 60 * 1000, ABSOLUTE = 8 * 60 * 60 * 1000;
++const IDLE = 30 * 60 * 1000, ABSOLUTE = 8 * 60 * 60 * 1000, ADMIN_IDLE = 10 * 60 * 1000; // an admin screen left open is the riskiest one
+ // Checked on the raw string BEFORE lower-casing: U+212A (Kelvin sign) lower-cases to "k" and would alias another account.
+ const USERNAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}$/;
++// Names the log and the admin panel use for themselves: a tester must not be able to look like them.
++const RESERVED = new Set(['system', 'operator', 'admin', 'root', 'administrator']);
+ const HIDDEN = /(?![\u200C\u200D])[\p{Cc}\p{Cf}]/u; // joiners stay: Devanagari, Persian and emoji need them
+ const HEALTH_CHECK_EVERY = 60_000;
+ 
+-export function createApp({ db, serverKey, logKey, config, now = Date.now, static: serveStatic }) {
++export function createApp({ db, serverKey, logKey, config, now = Date.now, static: serveStatic, maintenance = false }) {
+   const log = makeLog(db, logKey, now);
+-  const exams = makeExams({ db, log, serverKey, now });
++  const exams = makeExams({ db, log, serverKey, now, maintenance });
+   const limit = makeLimiter();
+   const failures = new Map(); // `${user}|${ip}` -> { n, until }
+   const cookieName = config.devHttp ? 'lp_sid' : '__Host-lp_sid';
+@@ -32,9 +34,9 @@
+     const sid = cookies(req)[cookieName];
+     if (!sid || sid.length > 100) return null;
+     const hash = sha256(sid).toString('hex');
+-    const s = db.prepare('SELECT s.*, a.username, a.display, a.must_change FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.hash = ?').get(hash);
++    const s = db.prepare('SELECT s.*, a.username, a.display, a.must_change, a.is_admin, a.disabled FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.hash = ?').get(hash);
+     if (!s) return null;
+-    if (now() - s.seen > IDLE || now() - s.created > ABSOLUTE) { db.prepare('DELETE FROM sessions WHERE hash = ?').run(hash); return null; }
++    if (s.disabled || now() - s.seen > (s.is_admin ? ADMIN_IDLE : IDLE) || now() - s.created > ABSOLUTE) { db.prepare('DELETE FROM sessions WHERE hash = ?').run(hash); return null; }
+     // Background polls are answered but do not count as activity, so an unattended screen still idles out.
+     if (req.headers['x-lp-background'] !== '1') db.prepare('UPDATE sessions SET seen = ? WHERE hash = ?').run(now(), hash);
+     return { ...s, hash };
+@@ -47,14 +49,15 @@
+     const passphrase = generatePassphrase(), recovery = generatePassphrase(3);
+     return { passphrase, recovery, pw: await hashPassword(passphrase), rec: await hashPassword(recovery) };
+   }
+-  function insertAccount(username, display, secrets, mustChange = false) {
++  function insertAccount(username, display, secrets, { mustChange = false, admin = false, ip = null } = {}) {
+     const accId = rand(16).toString('hex');
+-    db.prepare('INSERT INTO accounts (id, username, display, pw, recovery, simulated, created, must_change) VALUES (?,?,?,?,?,?,?,?)')
+-      .run(accId, username, display, secrets ? secrets.pw : '!', secrets ? secrets.rec : null, secrets ? 0 : 1, now(), mustChange ? 1 : 0);
++    db.prepare('INSERT INTO accounts (id, username, display, pw, recovery, simulated, created, must_change, is_admin, reg_ip, last_ip, last_login) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
++      .run(accId, username, display, secrets ? secrets.pw : '!', secrets ? secrets.rec : null, secrets ? 0 : 1, now(), mustChange ? 1 : 0, admin ? 1 : 0, ip, ip, ip ? now() : null);
+     return { id: accId, passphrase: secrets?.passphrase, recovery: secrets?.recovery };
+   }
+   // mustChange: the operator saw these secrets (official setup), so the owner must replace them at first login.
+-  const createAccount = async (username, display, { mustChange = false } = {}) => insertAccount(username, display, await newSecrets(), mustChange);
++  // admin: only the operator's script (scripts/make-admin.mjs) passes it; no HTTP route can set it.
++  const createAccount = async (username, display, { mustChange = false, admin = false } = {}) => insertAccount(username, display, await newSecrets(), { mustChange, admin });
+ 
+   // A practice exam: 10 topics, 4 simulated setters with one question per topic, the tester holds every role and 5 labelled cards.
+   function seedPracticeExam(accountId) {
+@@ -81,6 +84,8 @@
+     if (config.trustProxy && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(direct) && req.headers['x-real-ip']) return String(req.headers['x-real-ip']).slice(0, 64);
+     return direct;
+   };
++  // Addresses are kept for practice testers only (to spot abuse); official and demo accounts are staff, so none is stored.
++  const keptIp = (req) => (config.mode === 'practice' ? clientIp(req) : null);
+   const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : null);
+   const int = (v) => (Number.isInteger(v) ? v : (typeof v === 'string' && /^\d{1,6}$/.test(v) ? Number(v) : NaN));
+   const userName = (v) => { const raw = str(v, 64)?.trim(); return raw && USERNAME.test(raw) ? raw.toLowerCase() : null; };
+@@ -96,7 +101,7 @@
+   }
+   function fail(key) {
+     const f = failures.get(key) || { n: 0, until: 0 };
+-    f.n++;
++    f.n++; f.at = now();
+     if (f.n >= 5) f.until = now() + Math.min(15 * 60_000, 1000 * 2 ** (f.n - 5));
+     if (failures.size > 50_000) failures.clear();
+     failures.set(key, f);
+@@ -160,6 +165,29 @@
+     } catch { return { ok: false, reason: 'database not answering' }; }
+   }
+ 
++  // ---------- admin helpers ----------
++  const qparam = (query, name, max) => {
++    const v = query.get(name);
++    if (v === null || v === '') return null;
++    if (v.length > max) throw new HttpError(400, `${name} is too long.`);
++    if (/[\u0000-\u001f\u007f]/.test(v)) throw new HttpError(400, `${name} has a control character.`); // a NUL would cut a LIKE pattern short
++    return v.trim();
++  };
++  const logTotal = () => db.prepare('SELECT COALESCE(MAX(seq), 0) n FROM log').get().n;
++  const logRow = (r) => ({ seq: r.seq, at: r.at, examId: r.exam_id, hash: r.hash, action: r.action, detail: JSON.parse(r.detail),
++    // A real account id with no account row is a deleted account; anything else (system, operator) is a fixed name.
++    actor: r.username ?? (/^[0-9a-f]{32}$/.test(r.actor || '') ? `(deleted ${r.actor.slice(0, 8)})` : (r.actor || 'system')) });
++  const adminEvents = (n) => db.prepare(`SELECT l.seq, l.exam_id, l.at, l.actor, a.username, l.action, l.detail, l.hash FROM log l LEFT JOIN accounts a ON a.id = l.actor
++    WHERE l.exam_id = 'admin' ORDER BY l.seq DESC LIMIT ?`).all(n).map(logRow);
++  // The account an admin action points at: never a simulated setter, an admin, or the admin themselves.
++  function adminTarget(sess, id) {
++    const t = db.prepare('SELECT id, username, is_admin FROM accounts WHERE id = ? AND simulated = 0').get(id);
++    if (!t) throw new HttpError(404, 'Not found');
++    if (t.id === sess.account_id) throw new HttpError(409, 'You cannot do this to your own account.');
++    if (t.is_admin) throw new HttpError(409, 'Administrators are managed on the server (scripts/make-admin.mjs), not here.');
++    return t;
++  }
++
+   // ---------- the route table (also read by the route-matrix test) ----------
+   // auth: 'none' | 'session'. cap: capability needed on the exam in the path (missing => 404). practiceOnly: hidden in official.
+   const R = (method, path, opts, handler) => ({ method, path, ...opts, handler });
+@@ -177,6 +205,8 @@
+       const ok = acc && !acc.simulated ? await checkPassword(password, acc.pw) : await burnPasswordTime(password);
+       if (!ok) { fail(key); throw new HttpError(401, 'Username or passphrase is wrong.'); }
+       failures.delete(key);
++      if (acc.disabled) throw new HttpError(403, 'This account has been disabled by an administrator. Ask the team if you think this is a mistake.');
++      db.prepare('UPDATE accounts SET last_ip = ?, last_login = ? WHERE id = ?').run(keptIp(req), now(), acc.id);
+       const old = session(req);
+       if (old) db.prepare('DELETE FROM sessions WHERE hash = ?').run(old.hash); // a new login never reuses an old session
+       const s = startSession(acc.id);
+@@ -189,6 +219,7 @@
+     R('POST', '/api/register', { auth: 'none', bucket: 'auth', practiceOnly: true }, async ({ body, req }) => {
+       const invite = str(body.invite, 64) ?? '', username = userName(body.username), display = str(body.display, 60)?.trim();
+       if (!safeEqual(sha256(invite.trim().toUpperCase()), sha256(config.inviteCode.toUpperCase()))) throw new HttpError(403, 'That course code is not right. It is printed in the user guide.');
++      if (username && RESERVED.has(username)) throw new HttpError(400, 'That username is reserved. Choose another.');
+       if (!username || !USERNAME.test(username) || username.startsWith('sim-')) throw new HttpError(400, 'Username: 3 to 32 characters, lowercase letters, digits, dot, dash or underscore.');
+       if (!display || display.length < 2) throw new HttpError(400, 'Enter a display name (2 to 60 characters).');
+       if (HIDDEN.test(display)) throw new HttpError(400, 'The display name has an invisible or control character. Type plain text.');
+@@ -200,7 +231,7 @@
+       const secrets = await newSecrets();
+       // Checked again: another request may have taken the name while this one was hashing.
+       if (db.prepare('SELECT 1 FROM accounts WHERE username = ?').get(username)) throw new HttpError(409, 'That username is taken. Choose another.');
+-      const { acc, examId } = tx(db, () => { const acc = insertAccount(username, display, secrets); return { acc, examId: seedPracticeExam(acc.id) }; });
++      const { acc, examId } = tx(db, () => { const acc = insertAccount(username, display, secrets, { ip: keptIp(req) }); return { acc, examId: seedPracticeExam(acc.id) }; });
+       limit(daily, config.registerPerIp, 24 * 3600_000); // only successful sign-ups count, so a shared network is not locked out by typos
+       log.append(examId, acc.id, 'account.registered', {});
+       const s = startSession(acc.id);
+@@ -215,6 +246,7 @@
+       const ok = acc && acc.recovery ? await checkPassword(code, acc.recovery) : await burnPasswordTime(code);
+       if (!ok) { fail(key); throw new HttpError(401, 'Username or recovery code is wrong.'); }
+       failures.delete(key);
++      if (acc.disabled) throw new HttpError(403, 'This account has been disabled by an administrator. Ask the team if you think this is a mistake.');
+       const fresh = await newSecrets(), pass = fresh.passphrase, recovery = fresh.recovery;
+       // The update only applies if the code is still the one we checked: two racing requests cannot both use it.
+       const used = tx(db, () => {
+@@ -244,7 +276,7 @@
+       return { passphrase: fresh.passphrase, recovery: fresh.recovery };
+     }),
+     R('GET', '/api/me', { auth: 'session', beforeChange: true }, ({ sess }) => ({
+-      username: sess.username, display: sess.display, csrf: sess.csrf, instance: config.mode, name: config.instance, mustChange: !!sess.must_change,
++      username: sess.username, display: sess.display, csrf: sess.csrf, instance: config.mode, name: config.instance, mustChange: !!sess.must_change, admin: !!sess.is_admin,
+       exams: db.prepare('SELECT DISTINCT e.id, e.title, e.stage, e.practice FROM exams e JOIN assignments a ON a.exam_id = e.id WHERE a.account_id = ? ORDER BY e.created DESC').all(sess.account_id),
+       waiting: waitingFor(sess),
+     })),
+@@ -271,11 +303,105 @@
+     R('POST', '/api/exams/:id/trace', { auth: 'session', cap: 'run', bucket: 'sensitive' }, ({ sess, params, body }) => exams.trace(params.id, sess.account_id, body.text)),
+     R('GET', '/api/exams/:id/key/:seat', { auth: 'session', cap: 'run' }, ({ sess, params }) => exams.answerKey(params.id, sess.account_id, int(params.seat))),
+     R('POST', '/api/practice/reset', { auth: 'session', practiceOnly: true }, ({ sess }) => {
++      if (sess.is_admin) throw new HttpError(403, 'Administrator accounts do not run exams. Use a separate practice account.');
+       const own = db.prepare("SELECT e.id FROM exams e JOIN assignments a ON a.exam_id = e.id WHERE a.account_id = ? AND a.cap = 'run' AND e.practice = 1").all(sess.account_id);
+       if (own.length >= 10) throw new HttpError(429, 'You have made 10 practice exams. That is the limit.');
+       const examId = tx(db, () => seedPracticeExam(sess.account_id));
+       return { status: 201, body: { examId } };
+     }),
++    // ---------- admin: operator-only; made by scripts/make-admin.mjs, never over HTTP; sees metadata and the log, never paper, questions or keys ----------
++    R('GET', '/api/admin/overview', { auth: 'session', admin: true }, () => {
++      const n = (sql, ...a) => db.prepare(sql).get(...a).n;
++      const day = now() - 24 * 3600_000;
++      const lockouts = [...failures].filter(([, f]) => f.n >= 3 && now() - (f.at || 0) < 24 * 3600_000).sort((a, b) => b[1].n - a[1].n).slice(0, 20).map(([key, f]) => {
++        const p = key.split('|');
++        const kind = p[0] === 'recover' ? 'recovery' : p[0] === 'pass' ? 'passphrase change' : 'login';
++        const user = kind === 'login' ? p[0] : kind === 'recovery' ? p[1] : (db.prepare('SELECT username FROM accounts WHERE id = ?').get(p[1])?.username ?? p[1]);
++        return { kind, user, ip: p.slice(kind === 'login' ? 1 : 2).join('|'), attempts: f.n, until: f.until, at: f.at };
++      });
++      return {
++        mode: config.mode, instance: config.instance, serverNow: now(),
++        accounts: n('SELECT COUNT(*) n FROM accounts WHERE simulated = 0'), admins: n('SELECT COUNT(*) n FROM accounts WHERE is_admin = 1'),
++        disabled: n('SELECT COUNT(*) n FROM accounts WHERE disabled = 1'), newToday: n('SELECT COUNT(*) n FROM accounts WHERE simulated = 0 AND created > ?', day),
++        activeSessions: n('SELECT COUNT(*) n FROM sessions WHERE seen > ?', now() - IDLE), cap: config.maxAccounts,
++        exams: { practice: n('SELECT COUNT(*) n FROM exams WHERE practice = 1'), official: n('SELECT COUNT(*) n FROM exams WHERE practice = 0') },
++        logEntries: n('SELECT COALESCE(MAX(seq), 0) n FROM log'), chain: log.status(), head: log.head(), lockouts,
++        recent: adminEvents(10),
++      };
++    }),
++    R('GET', '/api/admin/users', { auth: 'session', admin: true }, ({ query }) => {
++      const q = qparam(query, 'q', 64), limit = Math.min(200, Math.max(1, Number(query.get('limit')) || 50)), offset = Math.min(100_000, Math.max(0, Number(query.get('offset')) || 0));
++      const like = q ? `%${q.replace(/[\\%_]/g, '\\$&')}%` : null;
++      const where = 'a.simulated = 0' + (q ? " AND (a.username LIKE ? ESCAPE '\\' OR a.display LIKE ? ESCAPE '\\' OR a.reg_ip = ? OR a.last_ip = ?)" : '');
++      const args = q ? [like, like, q, q] : [];
++      const total = db.prepare(`SELECT COUNT(*) n FROM accounts a WHERE ${where}`).get(...args).n;
++      const rows = db.prepare(`SELECT a.id, a.username, a.display, a.created, a.last_login, a.reg_ip, a.last_ip, a.disabled, a.is_admin,
++          (SELECT COUNT(*) FROM sessions s WHERE s.account_id = a.id) AS sessions,
++          (SELECT COUNT(*) FROM assignments x WHERE x.account_id = a.id AND x.cap = 'run') AS exams,
++          (SELECT COUNT(*) FROM log l WHERE l.actor = a.id) AS events,
++          (SELECT COUNT(*) FROM accounts b WHERE b.simulated = 0 AND a.reg_ip IS NOT NULL AND b.reg_ip = a.reg_ip) AS sameNetwork
++        FROM accounts a WHERE ${where} ORDER BY a.created DESC, a.id LIMIT ? OFFSET ?`).all(...args, limit, offset);
++      return { total, next: offset + rows.length < total ? offset + rows.length : null,
++        users: rows.map((u) => ({ id: u.id, username: u.username, display: u.display, created: u.created, lastLogin: u.last_login, regIp: u.reg_ip, lastIp: u.last_ip,
++          disabled: !!u.disabled, admin: !!u.is_admin, sessions: u.sessions, exams: u.exams, events: u.events, sameNetwork: u.sameNetwork })) };
++    }),
++    R('GET', '/api/admin/log', { auth: 'session', admin: true }, ({ query }) => {
++      const exam = qparam(query, 'exam', 32), actor = qparam(query, 'actor', 40), action = qparam(query, 'action', 40);
++      if (exam && !/^[0-9a-f]{32}$|^admin$/.test(exam)) throw new HttpError(400, 'exam must be an exam id or "admin".');
++      const bq = query.get('before');
++      if (bq !== null && !/^\d{1,12}$/.test(bq)) throw new HttpError(400, 'before must be a number.');
++      const limit = Math.min(200, Math.max(1, Number(query.get('limit')) || 100));
++      const where = [], args = [];
++      if (exam) { where.push('l.exam_id = ?'); args.push(exam); }
++      if (actor) {
++        const id = actor === 'system' ? 'system' : db.prepare('SELECT id FROM accounts WHERE username = ?').get(actor.toLowerCase())?.id;
++        if (!id) return { entries: [], next: null, total: logTotal(), chain: log.status() };
++        where.push('l.actor = ?'); args.push(id);
++      }
++      if (action) { where.push("l.action LIKE ? ESCAPE '\\'"); args.push(`%${action.replace(/[\\%_]/g, '\\$&')}%`); }
++      if (bq !== null) { where.push('l.seq < ?'); args.push(Number(bq)); }
++      const rows = db.prepare(`SELECT l.seq, l.exam_id, l.at, l.actor, a.username, l.action, l.detail, l.hash FROM log l LEFT JOIN accounts a ON a.id = l.actor
++        ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY l.seq DESC LIMIT ?`).all(...args, limit);
++      return { entries: rows.map(logRow), next: rows.length === limit ? rows[rows.length - 1].seq : null, total: logTotal(), chain: log.status() };
++    }),
++    R('POST', '/api/admin/users/:id/disable', { auth: 'session', admin: true, bucket: 'sensitive' }, ({ sess, params, body }) => {
++      const t = adminTarget(sess, params.id);
++      const reason = str(body.reason, 200)?.trim();
++      if (!reason || reason.length < 3) throw new HttpError(400, 'Give a reason (at least 3 characters). It is written to the log.');
++      tx(db, () => {
++        db.prepare('UPDATE accounts SET disabled = 1 WHERE id = ?').run(t.id);
++        db.prepare('DELETE FROM sessions WHERE account_id = ?').run(t.id);
++        log.append('admin', sess.account_id, 'admin.user_disabled', { target: t.id, name: t.username, reason });
++      });
++      return { ok: true };
++    }),
++    R('POST', '/api/admin/users/:id/enable', { auth: 'session', admin: true, bucket: 'sensitive' }, ({ sess, params }) => {
++      const t = adminTarget(sess, params.id);
++      tx(db, () => { db.prepare('UPDATE accounts SET disabled = 0 WHERE id = ?').run(t.id); log.append('admin', sess.account_id, 'admin.user_enabled', { target: t.id, name: t.username }); });
++      return { ok: true };
++    }),
++    R('POST', '/api/admin/users/:id/delete', { auth: 'session', admin: true, bucket: 'sensitive', practiceOnly: true }, ({ sess, params, body }) => {
++      const t = adminTarget(sess, params.id);
++      if (str(body.confirm, 64) !== t.username) throw new HttpError(400, 'Type the username exactly to confirm.');
++      const reason = str(body.reason, 200)?.trim() || undefined;
++      const gone = tx(db, () => {
++        const own = db.prepare("SELECT e.id FROM exams e JOIN assignments a ON a.exam_id = e.id WHERE a.account_id = ? AND a.cap = 'run' AND e.practice = 1").all(t.id).map((e) => e.id);
++        for (const ex of own) {
++          exams.forget(ex);
++          db.prepare('DELETE FROM approvals WHERE release_id IN (SELECT id FROM releases WHERE exam_id = ?)').run(ex);
++          for (const tbl of ['releases', 'copies', 'cards', 'questions']) db.prepare(`DELETE FROM ${tbl} WHERE exam_id = ?`).run(ex);
++          db.prepare('DELETE FROM accounts WHERE simulated = 1 AND id IN (SELECT account_id FROM assignments WHERE exam_id = ?)').run(ex);
++          db.prepare('DELETE FROM assignments WHERE exam_id = ?').run(ex);
++          db.prepare('DELETE FROM exams WHERE id = ?').run(ex);
++        }
++        db.prepare('DELETE FROM questions WHERE setter_id = ?').run(t.id);
++        db.prepare('DELETE FROM accounts WHERE id = ?').run(t.id);
++        log.append('admin', sess.account_id, 'admin.user_deleted', { target: t.id, name: t.username, count: own.length, ...(reason ? { reason } : {}) });
++        return own.length;
++      });
++      checkpoint(db);
++      return { ok: true, exams: gone };
++    }),
+     R('GET', '/api/public/log/:id', { auth: 'none' }, ({ params }) => {
+       if (!/^[0-9a-f]{32}$/.test(params.id) || !exams.getExam(params.id)) notFound();
+       return { chain: log.status(), head: log.head(), total: log.countFor(params.id),
+@@ -329,6 +455,7 @@
+           if (!safeEqual(Buffer.from(t), Buffer.from(sess.csrf))) throw new HttpError(403, 'Your session expired on this page. Reload and try again.');
+         }
+       }
++      if (route.admin && !sess.is_admin) throw new HttpError(404, 'Not found'); // an admin route does not exist for anyone else
+       if (sess?.must_change && !route.beforeChange) throw new HttpError(403, 'Set your own passphrase first.', { extra: { mustChange: true } });
+       let examId = null;
+       if (route.cap) {
+@@ -339,7 +466,7 @@
+         if (!ok) notFound(); // no capability looks exactly like no such exam
+       }
+       const body = await readJson(req);
+-      const out = await route.handler({ req, sess, params, body, examId });
++      const out = await route.handler({ req, sess, params, body, examId, query: url.searchParams });
+       const r = out && out.status ? out : { status: 200, body: out };
+       return send(res, r.status, r.body, r.headers);
+     } catch (e) {
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/src/db.mjs vm/src/db.mjs
+--- base/src/db.mjs	2026-11-14 17:29:20
++++ vm/src/db.mjs	2026-11-14 18:04:39
+@@ -11,7 +11,9 @@
+ CREATE TABLE IF NOT EXISTS accounts (
+   id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, display TEXT NOT NULL,
+   pw TEXT NOT NULL, recovery TEXT, simulated INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL,
+-  must_change INTEGER NOT NULL DEFAULT 0);
++  must_change INTEGER NOT NULL DEFAULT 0,
++  is_admin INTEGER NOT NULL DEFAULT 0, disabled INTEGER NOT NULL DEFAULT 0,
++  reg_ip TEXT, last_ip TEXT, last_login INTEGER);
+ CREATE TABLE IF NOT EXISTS sessions (
+   hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+   csrf TEXT NOT NULL, created INTEGER NOT NULL, seen INTEGER NOT NULL);
+@@ -43,6 +45,7 @@
+   seq INTEGER PRIMARY KEY AUTOINCREMENT, exam_id TEXT, at INTEGER NOT NULL, actor TEXT, action TEXT NOT NULL,
+   detail TEXT NOT NULL, prev TEXT NOT NULL, hash TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS log_exam ON log(exam_id, seq);
++CREATE INDEX IF NOT EXISTS log_actor ON log(actor, seq);
+ CREATE TRIGGER IF NOT EXISTS log_no_update BEFORE UPDATE ON log BEGIN SELECT RAISE(ABORT, 'log is append-only'); END;
+ CREATE TRIGGER IF NOT EXISTS log_no_delete BEFORE DELETE ON log BEGIN SELECT RAISE(ABORT, 'log is append-only'); END;
+ `;
+@@ -53,9 +56,11 @@
+   const db = new DatabaseSync(file);
+   try { fs.chmodSync(file, 0o600); } catch { /* best effort */ }
+   db.exec(SCHEMA);
+-  // Databases made before must_change existed gain the column once.
+-  if (!db.prepare('PRAGMA table_info(accounts)').all().some((c) => c.name === 'must_change'))
+-    db.exec('ALTER TABLE accounts ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0');
++  // Databases made before a column existed gain it once.
++  const have = new Set(db.prepare('PRAGMA table_info(accounts)').all().map((c) => c.name));
++  for (const [col, def] of [['must_change', 'INTEGER NOT NULL DEFAULT 0'], ['is_admin', 'INTEGER NOT NULL DEFAULT 0'],
++    ['disabled', 'INTEGER NOT NULL DEFAULT 0'], ['reg_ip', 'TEXT'], ['last_ip', 'TEXT'], ['last_login', 'INTEGER']])
++    if (!have.has(col)) db.exec(`ALTER TABLE accounts ADD COLUMN ${col} ${def}`);
+   return db;
+ }
+ 
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/src/exam.mjs vm/src/exam.mjs
+--- base/src/exam.mjs	2026-11-14 17:32:53
++++ vm/src/exam.mjs	2026-11-14 18:20:11
+@@ -17,7 +17,7 @@
+ const B32 = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+ const b32 = (buf, n) => [...buf].slice(0, n).map((b) => B32[b & 31]).join('');
+ 
+-export function makeExams({ db, log, serverKey, now = Date.now }) {
++export function makeExams({ db, log, serverKey, now = Date.now, maintenance = false }) {
+   const opened = new Map();   // examId -> { paper, copySecret, layouts } ; memory only, gone on restart
+   // The paper in memory is bounded: at most MAX_OPEN papers, and one idle for OPEN_IDLE locks again (like a restart).
+   const evict = (examId, reason) => {
+@@ -35,6 +35,12 @@
+     return st;
+   };
+   const isOpen = (examId) => !!getOpen(examId);
++  // Admin deletes an exam: its open paper and any approvals held in memory go with it.
++  function forget(examId) {
++    const st = opened.get(examId);
++    if (st) { st.copySecret.fill(0); opened.delete(examId); }
++    for (const r of db.prepare('SELECT id FROM releases WHERE exam_id = ?').all(examId)) drop(r.id);
++  }
+   const pending = new Map();  // releaseId -> Map(slot -> share Buffer) ; memory only
+   const wrongWords = new Map(); // `${releaseId}|${holderId}` -> wrong two-word attempts
+   const drop = (rid) => { pending.get(rid)?.forEach((s) => s.fill(0)); pending.delete(rid); for (const k of wrongWords.keys()) if (k.startsWith(rid + '|')) wrongWords.delete(k); };
+@@ -46,7 +52,8 @@
+   const topicsOf = (exam) => JSON.parse(exam.topics);
+ 
+   // Start-up: approvals held in memory and any open paper are gone, so those requests cannot finish. Say so instead of hanging.
+-  for (const r of db.prepare("SELECT id, exam_id FROM releases WHERE state IN ('pending', 'open')").all()) {
++  // A maintenance script (make-admin) shares the database with the live server, whose releases are NOT interrupted: skip this step for it.
++  if (!maintenance) for (const r of db.prepare("SELECT id, exam_id FROM releases WHERE state IN ('pending', 'open')").all()) {
+     db.prepare("UPDATE releases SET state = 'interrupted' WHERE id = ?").run(r.id);
+     log.append(r.exam_id, 'system', 'release.interrupted', { release: r.id, reason: 'restart' });
+     console.log(`release ${r.id} interrupted by restart`);
+@@ -430,7 +437,7 @@
+ 
+   return { createExam, assign, capsOf, has, slotsOf, getExam, mustExam, topicsOf, submit, myQuestions, deleteQuestion, counts,
+     sealExam, fetchShare, verifyShare, verifiedCount, requestRelease, releaseView, decide, copy, answerKey, trace, seedReveal,
+-    isOpen, _opened: opened, _pending: pending };
++    isOpen, forget, _opened: opened, _pending: pending };
+ }
+ 
+ const isSubsequence = (sub, seq) => { let i = 0; for (const x of seq) if (x === sub[i]) i++; return i === sub.length; };
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/src/log.mjs vm/src/log.mjs
+--- base/src/log.mjs	2026-11-14 14:19:54
++++ vm/src/log.mjs	2026-11-14 18:22:42
+@@ -5,8 +5,10 @@
+ const GENESIS = '0'.repeat(64);
+ // Only these detail fields may ever be written: no question text, keys, shares or passphrases.
+ const ALLOWED = new Set(['topics', 'questions', 'setters', 'slot', 'seat', 'seats', 'fetch', 'release', 'verified',
+-  'drawn', 'setHash', 'reason', 'stage', 'approved', 'needed', 'matches', 'fragment', 'gate', 'seed', 'count']);
++  'drawn', 'setHash', 'reason', 'stage', 'approved', 'needed', 'matches', 'fragment', 'gate', 'seed', 'count', 'target']);
+ 
++// A username may appear only in admin events (exam id 'admin', never shown on a public log), so the operator can read who an action was about.
++const ADMIN_ONLY = new Set(['name']);
+ const RECHECK = 30_000;
+ 
+ export function makeLog(db, key, now = Date.now) {
+@@ -15,12 +17,18 @@
+   const entryHash = (prev, e) => hmac(key, prev, e.exam_id ?? '', String(e.at), e.actor ?? '', e.action, e.detail).toString('hex');
+ 
+   function append(examId, actor, action, detail = {}) {
+-    for (const k of Object.keys(detail)) if (!ALLOWED.has(k)) throw new Error('log field not allowed: ' + k);
+-    const prev = last.get()?.hash ?? GENESIS;
+-    const e = { exam_id: examId, at: Date.now(), actor, action, detail: JSON.stringify(detail) };
+-    const hash = entryHash(prev, e);
+-    ins.run(e.exam_id, e.at, e.actor, e.action, e.detail, prev, hash);
+-    return hash;
++    for (const k of Object.keys(detail)) if (!ALLOWED.has(k) && !(ADMIN_ONLY.has(k) && String(action).startsWith('admin.'))) throw new Error('log field not allowed: ' + k);
++    // Read the head and write the next entry under one write lock, so a second process (the make-admin script) cannot fork the chain.
++    let own = false;
++    try { db.exec('BEGIN IMMEDIATE'); own = true; } catch (err) { if (!/within a transaction/i.test(err.message)) throw err; }
++    try {
++      const prev = last.get()?.hash ?? GENESIS;
++      const e = { exam_id: examId, at: Date.now(), actor, action, detail: JSON.stringify(detail) };
++      const hash = entryHash(prev, e);
++      ins.run(e.exam_id, e.at, e.actor, e.action, e.detail, prev, hash);
++      if (own) db.exec('COMMIT');
++      return hash;
++    } catch (err) { if (own) db.exec('ROLLBACK'); throw err; }
+   }
+   function verify() {
+     let prev = GENESIS, n = 0;
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/tests/admin.test.mjs vm/tests/admin.test.mjs
+--- base/tests/admin.test.mjs	1970-01-01 05:30:00
++++ vm/tests/admin.test.mjs	2026-11-14 18:20:40
+@@ -0,0 +1,471 @@
++// The admin panel: see everything the operator needs, remove abusers, and nothing more.
++// Admin accounts are made only by the operator on the VM (scripts/make-admin.mjs), never over HTTP.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { boot, practiceUser, sealAndVerify, releaseOpen } from './helpers.mjs';
++
++async function adminOf(t, name = 'boss') {
++  const a = await t.app.createAccount(name, 'Operator', { admin: true });
++  const c = t.client();
++  const r = await c.post('/api/login', { username: name, password: a.passphrase });
++  assert.equal(r.status, 200, 'admin can log in');
++  return { c, id: a.id, passphrase: a.passphrase };
++}
++const idOf = (t, username) => t.db.prepare('SELECT id FROM accounts WHERE username = ?').get(username)?.id;
++
++test('A1 [SR16] an admin cannot be created over HTTP, and a normal user gets 404 on every admin route (anonymous gets 401)', async () => {
++  const t = await boot();
++  try {
++    const reg = await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'sneaky1', display: 'Sneaky', admin: true, is_admin: 1 });
++    assert.equal(reg.status, 201);
++    assert.equal(t.db.prepare('SELECT is_admin FROM accounts WHERE username = ?').get('sneaky1').is_admin, 0);
++    const u = await practiceUser(t);
++    const me = (await u.c.get('/api/me')).data;
++    assert.equal(me.admin, false);
++    const adminRoutes = t.app.routes.filter((r) => r.admin);
++    assert.equal(adminRoutes.length, 6, 'exactly these admin routes exist: a new one must be added here on purpose');
++    const anon = t.client();
++    for (const r of adminRoutes) {
++      const p = r.path.replace(':id', 'a'.repeat(32));
++      const body = r.method === 'GET' ? undefined : {};
++      assert.equal((await anon.raw(r.method, p, body)).status, 401, `${r.method} ${r.path} anonymous`);
++      assert.equal((await u.c.raw(r.method, p, body)).status, 404, `${r.method} ${r.path} as a normal user`);
++    }
++  } finally { await t.stop(); }
++});
++
++test('A2 [SR16] the admin overview, user list and search show what the operator needs and never a secret', async () => {
++  const t = await boot();
++  try {
++    await practiceUser(t, 'alice1'); await practiceUser(t, 'bobby2');
++    const { c } = await adminOf(t);
++    assert.equal((await c.get('/api/me')).data.admin, true);
++    const ov = (await c.get('/api/admin/overview')).data;
++    assert.equal(ov.accounts, 3); assert.equal(ov.admins, 1); assert.equal(ov.disabled, 0);
++    assert.equal(ov.chain.ok, true); assert.ok(ov.exams.practice >= 2);
++    const list = (await c.get('/api/admin/users')).data;
++    assert.deepEqual(list.users.map((u) => u.username).sort(), ['alice1', 'bobby2', 'boss']);
++    assert.ok(!list.users.some((u) => u.username.startsWith('sim-')), 'simulated setters are not listed');
++    const alice = list.users.find((u) => u.username === 'alice1');
++    assert.ok(alice.regIp && alice.exams === 1 && alice.sessions === 1 && alice.sameNetwork === 2);
++    assert.ok(!JSON.stringify(list).match(/"pw"|"recovery"|s1\$/), 'no password hash or recovery hash is ever returned');
++    assert.deepEqual((await c.get('/api/admin/users?q=ali')).data.users.map((u) => u.username), ['alice1']);
++    assert.equal((await c.get('/api/admin/users?q=%25')).data.users.length, 0, '% is not a wildcard');
++    assert.equal((await c.get(`/api/admin/users?q=${encodeURIComponent(alice.regIp)}`)).data.users.length, 3, 'search by network address');
++    assert.equal((await c.get('/api/admin/users?limit=1')).data.users.length, 1);
++    assert.equal((await c.get('/api/admin/users?limit=99999')).data.users.length, 3, 'limit is capped');
++    assert.equal((await c.get('/api/admin/users?q=' + 'x'.repeat(500))).status, 400);
++  } finally { await t.stop(); }
++});
++
++test('A3 [SR16] disabling a user ends their sessions at once, blocks login and recovery without revealing the account, and is logged', async () => {
++  const t = await boot();
++  try {
++    const victim = await practiceUser(t, 'spammer1');
++    const { c, id: adminId } = await adminOf(t);
++    const vid = idOf(t, 'spammer1');
++    assert.equal((await c.post(`/api/admin/users/${vid}/disable`, {})).status, 400, 'a reason is required');
++    assert.equal((await c.post(`/api/admin/users/${vid}/disable`, { reason: 'x' })).status, 400);
++    const d = await c.post(`/api/admin/users/${vid}/disable`, { reason: 'mass sign-up from one address' });
++    assert.equal(d.status, 200);
++    assert.equal(t.db.prepare('SELECT COUNT(*) n FROM sessions WHERE account_id = ?').get(vid).n, 0, 'the session rows are deleted, not merely ignored');
++    assert.equal((await victim.c.get('/api/me')).status, 401, 'the live session died immediately');
++    const anon = t.client();
++    assert.equal((await anon.post('/api/login', { username: 'spammer1', password: 'wrong-guess-here' })).data.error, 'Username or passphrase is wrong.',
++      'a wrong passphrase gets the same answer as for an unknown user: no enumeration');
++    const right = await anon.post('/api/login', { username: 'spammer1', password: victim.passphrase });
++    assert.equal(right.status, 403); assert.match(right.data.error, /disabled by an administrator/);
++    assert.equal((await anon.get('/api/me')).status, 401, 'no session was created');
++    assert.equal((await t.client().post('/api/recover', { username: 'spammer1', recovery: victim.recovery })).status, 403, 'recovery cannot bypass it');
++    const row = (await c.get('/api/admin/users?q=spammer1')).data.users[0];
++    assert.equal(row.disabled, true);
++    assert.equal((await c.post(`/api/admin/users/${vid}/enable`, {})).status, 200);
++    assert.equal((await t.client().post('/api/login', { username: 'spammer1', password: victim.passphrase })).status, 200, 're-enabled: the same passphrase works');
++    const log = (await c.get('/api/admin/log?exam=admin')).data.entries;
++    assert.deepEqual(log.map((e) => e.action), ['admin.user_enabled', 'admin.user_disabled']);
++    assert.equal(log[1].actor, 'boss'); assert.equal(log[1].detail.reason, 'mass sign-up from one address'); assert.equal(log[1].detail.target, vid);
++    assert.equal(log[1].detail.name, 'spammer1', 'the operator can read who the action was about');
++    assert.equal(t.app.log.verify().ok, true, 'admin actions are in the keyed chain');
++    // Admin events carry no exam id of any real exam, so no public log shows them.
++    for (const row of t.db.prepare('SELECT id FROM exams').all()) {
++      const pub = (await anon.get(`/api/public/log/${row.id}`)).data;
++      assert.ok(!pub.entries.some((e) => e.action.startsWith('admin.')));
++    }
++    assert.equal(adminId.length, 32);
++  } finally { await t.stop(); }
++});
++
++test('A4 [SR16] an admin cannot be disabled or deleted here, nor can the admin act on themselves or on a simulated setter', async () => {
++  const t = await boot();
++  try {
++    await practiceUser(t, 'carol3');
++    const { c, id } = await adminOf(t);
++    const second = await adminOf(t, 'boss2');
++    const sim = t.db.prepare('SELECT id FROM accounts WHERE simulated = 1 LIMIT 1').get().id;
++    for (const target of [id, second.id, sim]) {
++      assert.equal((await c.post(`/api/admin/users/${target}/disable`, { reason: 'testing' })).status, target === sim ? 404 : 409);
++      assert.equal((await c.post(`/api/admin/users/${target}/delete`, { confirm: 'boss' })).status, target === sim ? 404 : 409);
++    }
++    assert.equal((await c.post(`/api/admin/users/${'f'.repeat(32)}/disable`, { reason: 'testing' })).status, 404);
++    assert.equal(t.db.prepare('SELECT disabled FROM accounts WHERE id = ?').get(id).disabled, 0);
++  } finally { await t.stop(); }
++});
++
++test('A5 [SR16] deleting a user (practice only) needs their username typed, removes their data and exam, keeps the log, frees the account cap', async () => {
++  const t = await boot({ LP_MAX_ACCOUNTS: '3' });
++  try {
++    const bot = await practiceUser(t, 'botnet1');
++    const { c } = await adminOf(t);
++    const bid = idOf(t, 'botnet1');
++    const examId = bot.examId;
++    const shares = await sealAndVerify(bot.c, examId);
++    await releaseOpen(bot.c, examId, shares, 3);
++    assert.ok(t.app.exams.isOpen(examId));
++    assert.equal((await c.post(`/api/admin/users/${bid}/delete`, {})).status, 400, 'typed confirmation required');
++    assert.equal((await c.post(`/api/admin/users/${bid}/delete`, { confirm: 'wrong' })).status, 400);
++    const before = t.db.prepare('SELECT COUNT(*) n FROM log').get().n;
++    const r = await c.post(`/api/admin/users/${bid}/delete`, { confirm: 'botnet1' });
++    assert.equal(r.status, 200); assert.equal(r.data.exams, 1);
++    assert.equal((await bot.c.get('/api/me')).status, 401);
++    assert.equal(t.db.prepare('SELECT COUNT(*) n FROM accounts WHERE username = ?').get('botnet1').n, 0);
++    assert.equal(t.db.prepare('SELECT COUNT(*) n FROM exams WHERE id = ?').get(examId).n, 0);
++    for (const tbl of ['questions', 'cards', 'releases', 'copies', 'assignments']) {
++      assert.equal(t.db.prepare(`SELECT COUNT(*) n FROM ${tbl} WHERE exam_id = ?`).get(examId).n, 0, tbl);
++    }
++    assert.equal(t.db.prepare('SELECT COUNT(*) n FROM approvals WHERE release_id NOT IN (SELECT id FROM releases)').get().n, 0, 'no orphan approvals');
++    assert.equal(t.db.prepare("SELECT COUNT(*) n FROM accounts WHERE simulated = 1").get().n, 0, 'its simulated setters went too');
++    assert.equal(t.app.exams.isOpen(examId), false, 'the open paper was dropped from memory');
++    assert.ok(t.db.prepare('SELECT COUNT(*) n FROM log').get().n > before, 'the log only grew');
++    assert.equal(t.app.log.verify().ok, true);
++    const entries = (await c.get(`/api/admin/log?exam=${examId}`)).data.entries;
++    assert.ok(entries.length > 5, 'the deleted exam\'s history is still readable by the admin');
++    assert.ok(entries.every((e) => e.actor !== 'botnet1'), 'deleted accounts show as their id, not a name');
++    const del = (await c.get('/api/admin/log?exam=admin')).data.entries[0];
++    assert.equal(del.action, 'admin.user_deleted'); assert.equal(del.detail.name, 'botnet1', 'the name survives the deletion, in the admin log only');
++    // The freed slot can be used again (cap is 3 accounts: boss + two more).
++    assert.equal((await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'fresh01', display: 'Fresh' })).status, 201);
++  } finally { await t.stop(); }
++});
++
++test('A6 [SR16] deleting is refused on the official instance (disable only), and logged nowhere else', async () => {
++  const t = await boot({ LP_MODE: 'official' });
++  try {
++    const dean = await t.app.createAccount('dean', 'Dean');
++    const { c } = await adminOf(t);
++    const did = dean.id;
++    assert.equal((await c.post(`/api/admin/users/${did}/delete`, { confirm: 'dean' })).status, 404);
++    assert.equal((await c.post(`/api/admin/users/${did}/disable`, { reason: 'left the university' })).status, 200);
++    assert.equal(t.db.prepare('SELECT COUNT(*) n FROM accounts WHERE username = ?').get('dean').n, 1);
++  } finally { await t.stop(); }
++});
++
++test('A7 [SR16] the admin log filters by exam, actor and event, pages with a cursor, caps its size and names actors', async () => {
++  const t = await boot();
++  try {
++    const u = await practiceUser(t, 'dave4');
++    const w = await practiceUser(t, 'erin5');
++    await sealAndVerify(u.c, u.examId);
++    const { c } = await adminOf(t);
++    const all = (await c.get('/api/admin/log?limit=10')).data;
++    assert.equal(all.entries.length, 10); assert.ok(all.next > 0); assert.equal(all.chain.ok, true); assert.ok(all.total > 10);
++    assert.ok(all.entries.every((e, i, a) => i === 0 || e.seq < a[i - 1].seq), 'newest first');
++    const page2 = (await c.get(`/api/admin/log?limit=10&before=${all.next}`)).data;
++    assert.ok(page2.entries[0].seq < all.next);
++    const byExam = (await c.get(`/api/admin/log?exam=${u.examId}`)).data.entries;
++    assert.ok(byExam.length && byExam.every((e) => e.examId === u.examId));
++    const byActor = (await c.get('/api/admin/log?actor=dave4')).data.entries;
++    assert.ok(byActor.length && byActor.every((e) => e.actor === 'dave4'));
++    assert.ok((await c.get('/api/admin/log?actor=nobody-here')).data.entries.length === 0);
++    const byAction = (await c.get('/api/admin/log?action=card.verified')).data.entries;
++    assert.equal(byAction.length, 5); assert.ok(byAction.every((e) => e.action === 'card.verified'));
++    assert.equal((await c.get('/api/admin/log?limit=99999')).data.entries.length <= 200, true);
++    for (const bad of ['exam=zzz', 'before=abc', 'action=' + 'a'.repeat(100), 'actor=' + 'a'.repeat(100)]) assert.equal((await c.get('/api/admin/log?' + bad)).status, 400, bad);
++    assert.ok(w);
++  } finally { await t.stop(); }
++});
++
++test('A8 [SR16] the overview lists current lockouts, so a password-guessing client is visible', async () => {
++  const t = await boot({ LP_TRUST_PROXY: '1' });
++  try {
++    await practiceUser(t, 'frank6');
++    const { c } = await adminOf(t);
++    const attacker = t.client();
++    for (let i = 0; i < 6; i++) await attacker.post('/api/login', { username: 'frank6', password: 'guess-number-' + i }, { 'x-real-ip': '10.9.9.9' });
++    const ov = (await c.get('/api/admin/overview')).data;
++    const hit = ov.lockouts.find((l) => l.user === 'frank6');
++    assert.ok(hit && hit.ip === '10.9.9.9' && hit.attempts >= 5 && hit.until > Date.now());
++  } finally { await t.stop(); }
++});
++
++test('A9 [SR16] admin sessions idle out after 10 minutes (normal users after 30), and an admin has no route to questions, papers or keys', async () => {
++  const t = await boot();
++  try {
++    const u = await practiceUser(t, 'gina7');
++    const { c } = await adminOf(t);
++    t.db.prepare('UPDATE sessions SET seen = ?').run(Date.now() - 11 * 60_000);
++    assert.equal((await c.get('/api/admin/overview')).status, 401, 'admin idle after 11 min');
++    assert.equal((await u.c.get('/api/me')).status, 200, 'a normal user is still in at 11 min');
++    const { c: c3 } = await adminOf(t, 'boss4');
++    for (const p of [`/api/exams/${u.examId}`, `/api/exams/${u.examId}/questions`, `/api/exams/${u.examId}/cards/1`, `/api/exams/${u.examId}/key/1`, `/api/exams/${u.examId}/copies/1`]) {
++      assert.equal((await c3.get(p)).status, 404, `admin must not reach ${p}`);
++    }
++    assert.equal((await c3.post(`/api/exams/${u.examId}/seal`, {})).status, 404);
++  } finally { await t.stop(); }
++});
++
++test('A10 [SR16] sign-up records the network address for the admin; a disabled account cannot be used by an old cookie after a restart of the session table', async () => {
++  const t = await boot({ LP_TRUST_PROXY: '1' });
++  try {
++    const r = await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'hank8', display: 'Hank' }, { 'x-real-ip': '10.1.2.3' });
++    assert.equal(r.status, 201);
++    const row = t.db.prepare('SELECT reg_ip, last_ip FROM accounts WHERE username = ?').get('hank8');
++    assert.deepEqual([row.reg_ip, row.last_ip], ['10.1.2.3', '10.1.2.3']);
++    const l = t.client();
++    await l.post('/api/login', { username: 'hank8', password: r.data.passphrase }, { 'x-real-ip': '10.4.5.6' });
++    const after = t.db.prepare('SELECT reg_ip, last_ip, last_login FROM accounts WHERE username = ?').get('hank8');
++    assert.deepEqual([after.reg_ip, after.last_ip], ['10.1.2.3', '10.4.5.6']);
++    assert.ok(after.last_login > 0);
++    // A session row that survives (e.g. restored from a backup) is still refused once the account is disabled.
++    t.db.prepare('UPDATE accounts SET disabled = 1 WHERE username = ?').run('hank8');
++    assert.equal((await l.get('/api/me')).status, 401);
++  } finally { await t.stop(); }
++});
++
++test('A11 [SR16] make-admin creates a dedicated admin who must choose their own passphrase first, can list and revoke, and never touches an existing account', async () => {
++  const { execFileSync, spawnSync } = await import('node:child_process');
++  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-mkadmin-'));
++  const script = new URL('../scripts/make-admin.mjs', import.meta.url).pathname;
++  const run = (...a) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', script, ...a], { env: { ...process.env, LP_DATA_DIR: dir, LP_MODE: 'practice' }, encoding: 'utf8' });
++  try {
++    const slip = path.join(dir, 'slip.md');
++    const made = run('opsboss', '--name', 'Ops Boss', '--out', slip);
++    assert.equal(made.status, 0, made.stderr);
++    assert.ok(!made.stdout.includes('s1$') && !/passphrase: /.test(made.stdout), '--out prints no secret');
++    assert.equal(fs.statSync(slip).mode & 0o777, 0o600);
++    const pass = fs.readFileSync(slip, 'utf8').split('\n')[2].split('|')[2].trim();
++    assert.match(pass, /^[a-z2-9]{4}(-[a-z2-9]{4}){3}$/);
++    assert.match(run('--list').stdout, /^opsboss\tOps Boss/m);
++    assert.notEqual(run('opsboss').status, 0, 'an existing username is refused');
++    assert.notEqual(run('Bad Name!').status, 0);
++    assert.notEqual(run('sim-abc').status, 0);
++
++    const t = await boot({ LP_DATA_DIR: dir });
++    try {
++      const c = t.client();
++      assert.equal((await c.post('/api/login', { username: 'opsboss', password: pass })).status, 200);
++      const me = (await c.get('/api/me')).data;
++      assert.deepEqual([me.admin, me.mustChange], [true, true]);
++      const blocked = await c.get('/api/admin/overview');
++      assert.equal(blocked.status, 403); assert.equal(blocked.data.mustChange, true, 'the admin must set their own passphrase before any admin page');
++      assert.equal((await c.post('/api/passphrase', { current: pass })).status, 200);
++      assert.equal((await c.get('/api/admin/overview')).status, 200);
++      const log = (await c.get('/api/admin/log?exam=admin')).data.entries;
++      assert.equal(log[0].action, 'admin.granted'); assert.equal(log[0].actor, 'operator');
++      // Revoking works while the server runs and ends the admin's access immediately.
++      const rev = run('--revoke', 'opsboss');
++      assert.equal(rev.status, 0, rev.stderr);
++      assert.equal((await c.get('/api/admin/overview')).status, 401, 'sessions were ended');
++      assert.equal((await t.client().post('/api/login', { username: 'opsboss', password: pass })).status, 401, 'the slip passphrase no longer works');
++      assert.match(run('--list').stdout, /no administrators/);
++    } finally { await t.stop(); }
++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
++  assert.ok(execFileSync);
++});
++
++test('A12 [SR16] a username may be written to the log only by an admin event, so public logs stay name-free', async () => {
++  const t = await boot();
++  try {
++    assert.throws(() => t.app.log.append('some-exam', 'x', 'card.verified', { name: 'alice' }), /not allowed/);
++    assert.throws(() => t.app.log.append('admin', 'x', 'card.verified', { name: 'alice' }), /not allowed/, 'only admin.* events may carry a name');
++    assert.doesNotThrow(() => t.app.log.append('admin', 'x', 'admin.user_enabled', { target: 'a'.repeat(32), name: 'alice' }));
++    const u = await practiceUser(t); const anon = t.client();
++    const pub = JSON.stringify((await anon.get(`/api/public/log/${u.examId}`)).data);
++    assert.ok(!pub.includes('"name"') && !pub.includes('alice'), 'nothing named reaches a public log');
++  } finally { await t.stop(); }
++});
++
++// ---------- hardening: escalation, leakage, and the operator script's effect on a live system ----------
++
++test('A13 [SR16] running make-admin against a live system leaves open releases and every other record untouched', async () => {
++  const { spawnSync } = await import('node:child_process');
++  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-live-'));
++  const t = await boot({ LP_DATA_DIR: dir });
++  try {
++    const u = await practiceUser(t, 'liveuser1');
++    const shares = await sealAndVerify(u.c, u.examId);
++    const { rid } = await releaseOpen(u.c, u.examId, shares, 5);
++    const snap = () => JSON.stringify([t.db.prepare('SELECT id, state FROM releases').all(), t.db.prepare('SELECT stage FROM exams').all(), t.db.prepare("SELECT COUNT(*) n FROM log WHERE action LIKE 'release.interrupted'").get()]);
++    const before = snap();
++    const script = new URL('../scripts/make-admin.mjs', import.meta.url).pathname;
++    const r = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', script, 'liveadmin', '--out', path.join(dir, 'slip.md')],
++      { env: { ...process.env, LP_DATA_DIR: dir, LP_MODE: 'practice' }, encoding: 'utf8' });
++    assert.equal(r.status, 0, r.stderr);
++    assert.equal(snap().replace(/"COUNT\(\*\)":\d+/, ''), before.replace(/"COUNT\(\*\)":\d+/, ''), 'no release or exam changed state');
++    assert.equal(t.db.prepare("SELECT COUNT(*) n FROM log WHERE action = 'release.interrupted'").get().n, 0, 'no release was interrupted');
++    assert.equal(t.db.prepare('SELECT state FROM releases WHERE id = ?').get(rid).state, 'open');
++    assert.equal((await u.c.get(`/api/exams/${u.examId}/copies/1`)).status, 200, 'the open paper is still served');
++    assert.equal(t.app.log.verify().ok, true, 'the chain is still intact');
++  } finally { await t.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test('A14 [SR16] two writers appending to the log at the same time never fork the chain', async () => {
++  const { Worker } = await import('node:worker_threads');
++  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
++  const { openDb } = await import('../src/db.mjs'); const { makeLog } = await import('../src/log.mjs');
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-fork-'));
++  const key = 'ab'.repeat(32);
++  const db = openDb(dir);
++  try {
++    const url = new URL('./log-worker.mjs', import.meta.url);
++    const workers = [1, 2, 3].map((who) => new Worker(url, { workerData: { dir, key, n: 250, who: 'w' + who } }));
++    await Promise.all(workers.map((w) => new Promise((res) => w.once('message', res))));
++    const done = Promise.all(workers.map((w) => new Promise((res, rej) => { w.once('message', res); w.once('error', rej); })));
++    workers.forEach((w) => w.postMessage('go'));
++    await done;
++    const log = makeLog(db, Buffer.from(key, 'hex'));
++    const v = log.verify();
++    assert.equal(v.entries, 750); assert.equal(v.ok, true, `chain forked at entry ${v.brokenAt}`);
++  } finally { db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test('A15 [SR16] names that look like the log\'s own actors or the admin cannot be registered', async () => {
++  const t = await boot();
++  try {
++    for (const name of ['system', 'operator', 'admin', 'root', 'administrator', 'SYSTEM', 'Operator']) {
++      const r = await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: name, display: 'Look-alike' });
++      assert.equal(r.status, 400, name); assert.match(r.data.error, /reserved/);
++    }
++    assert.equal((await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'operator2', display: 'Fine' })).status, 201);
++  } finally { await t.stop(); }
++});
++
++test('A16 [SR16] an admin account cannot create or run exams, so it never holds an exam capability', async () => {
++  const t = await boot();
++  try {
++    const { c, id } = await adminOf(t);
++    const r = await c.post('/api/practice/reset', {});
++    assert.equal(r.status, 403); assert.match(r.data.error, /do not run exams/);
++    assert.equal(t.db.prepare('SELECT COUNT(*) n FROM assignments WHERE account_id = ?').get(id).n, 0);
++    assert.deepEqual((await c.get('/api/me')).data.exams, []);
++  } finally { await t.stop(); }
++});
++
++test('A17 [SR16] network addresses are stored only on the practice instance (official accounts are staff, not testers)', async () => {
++  const t = await boot({ LP_MODE: 'official', LP_TRUST_PROXY: '1' });
++  try {
++    const a = await t.app.createAccount('staff01', 'Staff');
++    const c = t.client();
++    assert.equal((await c.post('/api/login', { username: 'staff01', password: a.passphrase }, { 'x-real-ip': '10.7.7.7' })).status, 200);
++    const row = t.db.prepare('SELECT reg_ip, last_ip, last_login FROM accounts WHERE username = ?').get('staff01');
++    assert.equal(row.reg_ip, null); assert.equal(row.last_ip, null); assert.ok(row.last_login > 0, 'the time of the last login is still kept');
++  } finally { await t.stop(); }
++});
++
++test('A18 [SR16] a database made before the admin columns existed upgrades in place and keeps its accounts', async () => {
++  const { DatabaseSync } = await import('node:sqlite');
++  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
++  const { openDb } = await import('../src/db.mjs');
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-mig-'));
++  try {
++    const old = new DatabaseSync(path.join(dir, 'leakproof.db'));
++    old.exec(`CREATE TABLE accounts (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, display TEXT NOT NULL, pw TEXT NOT NULL, recovery TEXT,
++      simulated INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, must_change INTEGER NOT NULL DEFAULT 0);
++      INSERT INTO accounts (id, username, display, pw, created) VALUES ('${'a'.repeat(32)}', 'olduser', 'Old User', 'x', 1);`);
++    old.close();
++    for (let i = 0; i < 2; i++) {
++      const db = openDb(dir);
++      const cols = db.prepare('PRAGMA table_info(accounts)').all().map((c) => c.name);
++      for (const c of ['is_admin', 'disabled', 'reg_ip', 'last_ip', 'last_login']) assert.ok(cols.includes(c), c);
++      const row = db.prepare('SELECT username, is_admin, disabled, reg_ip FROM accounts').get();
++      assert.deepEqual({ ...row }, { username: 'olduser', is_admin: 0, disabled: 0, reg_ip: null }, 'an existing account becomes an ordinary, enabled one');
++      assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'log_actor'").get());
++      db.close();
++    }
++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test('A19 [SR16] hostile text in every admin query parameter is inert: no 500, no extra rows, no damage', async () => {
++  const t = await boot();
++  try {
++    await practiceUser(t, 'inj0001');
++    const { c } = await adminOf(t);
++    const accounts = () => t.db.prepare('SELECT COUNT(*) n FROM accounts').get().n;
++    const logs = () => t.db.prepare('SELECT COUNT(*) n FROM log').get().n;
++    const before = accounts();
++    const evil = ["' OR 1=1 --", "'; DROP TABLE accounts; --", '" OR ""="', '%', '_', '\\', '%00', '\u0000', '‮', '../../etc/passwd', '${7*7}', 'a'.repeat(40), "x' UNION SELECT pw,pw,pw,pw FROM accounts --"];
++    for (const e of evil) {
++      const v = encodeURIComponent(e);
++      for (const p of [`/api/admin/users?q=${v}`, `/api/admin/users?offset=${v}&limit=${v}`, `/api/admin/log?actor=${v}`, `/api/admin/log?action=${v}`, `/api/admin/log?exam=${v}`, `/api/admin/log?before=${v}&limit=${v}`]) {
++        const r = await c.get(p);
++        assert.ok(r.status === 200 || r.status === 400, `${p} -> ${r.status}`);
++        assert.ok(!JSON.stringify(r.data).match(/s1\$/), 'no password hash can be reached');
++        if (r.status === 200 && p.includes('users?q=')) assert.ok(r.data.users.length <= 1, `a hostile search matched ${r.data.users.length} users`);
++      }
++    }
++    assert.equal(accounts(), before, 'nothing was dropped or changed');
++    assert.ok(logs() > 0);
++    const bad = await c.post(`/api/admin/users/${"x' OR '1'='1"}/disable`, { reason: 'abc' });
++    assert.equal(bad.status, 404, 'a non-hex id never reaches the database');
++  } finally { await t.stop(); }
++});
++
++test('A20 [SR16] no response an ordinary user can get contains a network address, an admin flag, or another account\'s name', async () => {
++  const t = await boot();
++  try {
++    const { c: admin } = await adminOf(t, 'leakwatch');
++    await practiceUser(t, 'victim_zz1');
++    const u = await practiceUser(t, 'prober_zz2');
++    const seen = [];
++    const track = (r) => { seen.push(JSON.stringify(r.data) + JSON.stringify([...r.headers])); return r; };
++    const get = async (p) => track(await u.c.get(p)), post = async (p, b) => track(await u.c.post(p, b));
++    await get('/api/me'); await get(`/api/exams/${u.examId}`); await get(`/api/exams/${u.examId}/questions`);
++    const shares = await sealAndVerify(u.c, u.examId);
++    await get(`/api/exams/${u.examId}`);
++    const { rid } = await releaseOpen(u.c, u.examId, shares, 4);
++    await get(`/api/releases/${rid}`); const copy = await get(`/api/exams/${u.examId}/copies/2`); await get(`/api/exams/${u.examId}/key/2`);
++    await post(`/api/exams/${u.examId}/trace`, { text: copy.data.questions.map((q) => q.text).join('\n') });
++    await get(`/api/public/log/${u.examId}`); await post('/api/public/check-head', { head: 'a'.repeat(64) });
++    await post('/api/login', { username: 'prober_zz2', password: u.passphrase }); await post('/api/recover', { username: 'victim_zz1', recovery: 'wrong-wrong-wrong' });
++    await get('/api/admin/overview'); await get('/api/admin/users'); await get('/api/admin/log');
++    const all = seen.join('\n');
++    for (const bad of ['127.0.0.1', '::1', 'reg_ip', 'last_ip', 'regIp', 'lastIp', 'is_admin', 'victim_zz1', 'leakwatch', 'sameNetwork']) {
++      assert.ok(!all.includes(bad), `an ordinary user's responses must not contain "${bad}"`);
++    }
++    // And the admin's own view does hold them (so the test is not vacuous).
++    assert.ok(JSON.stringify((await admin.get('/api/admin/users')).data).includes('127.0.0.1'));
++  } finally { await t.stop(); }
++});
++
++test('A21 [SR16] sending privileged fields to every route changes no role, no capability and no admin flag', async () => {
++  const t = await boot();
++  try {
++    const { c: ac } = await adminOf(t, 'anchor_adm');
++    const victim = await practiceUser(t, 'victim_zz3');
++    const u = await practiceUser(t, 'attacker_zz4');
++    const victimId = idOf(t, 'victim_zz3');
++    const snap = () => JSON.stringify([t.db.prepare('SELECT username, is_admin, disabled, must_change FROM accounts WHERE simulated = 0 ORDER BY username').all(), t.db.prepare('SELECT account_id, exam_id, cap, slot FROM assignments ORDER BY 1,2,3,4').all()]);
++    const before = snap();
++    const evil = { admin: true, is_admin: 1, isAdmin: true, role: 'admin', roles: ['admin'], cap: 'run', caps: ['run', 'hold'], capability: 'hold', account_id: victimId, accountId: victimId,
++      user: victimId, username: 'anchor_adm', slot: 1, disabled: 0, must_change: 0, simulated: 0, practice: 0, __proto__: { admin: true }, constructor: { prototype: { admin: true } } };
++    const fill = (p) => p.replace(':id', victim.examId).replace(':rid', 'a'.repeat(32)).replace(':qid', 'b'.repeat(32)).replace(':slot', '1').replace(':seat', '1');
++    for (const r of t.app.routes.filter((x) => x.method !== 'GET' && !['/api/logout', '/api/passphrase'].includes(x.path))) {
++      for (const body of [evil, { ...evil, topic: 0, text: 'x', options: [], correct: 0, seats: 1, decision: 'approve', words: 'a b', share: '00', confirm: 'x', reason: 'abc' }]) {
++        const res = await u.c.raw(r.method, fill(r.path), body);
++        assert.ok(res.status < 500, `${r.method} ${r.path} -> ${res.status}`);
++      }
++    }
++    assert.equal((await u.c.post('/api/passphrase', { current: u.passphrase, ...evil })).status, 200);
++    assert.equal((await t.client().post('/api/login', { username: 'attacker_zz4', password: 'x', ...evil })).status, 401);
++    // The only change allowed is the attacker's own practice exam (reset) and passphrase; nothing about anyone's admin flag or the victim.
++    const after = JSON.parse(snap()), was = JSON.parse(before);
++    assert.deepEqual(after[0], was[0], 'no account flag changed (admin, disabled, must_change)');
++    assert.equal(after[0].filter((a) => a.is_admin).length, 1, 'still exactly one admin');
++    assert.deepEqual(after[1].filter((a) => a.account_id === victimId), was[1].filter((a) => a.account_id === victimId), 'the victim\'s capabilities are unchanged');
++    assert.equal((await u.c.get('/api/admin/overview')).status, 404, 'the attacker is logged in and was never an admin: the admin API does not exist for them');
++    const again = t.client(); const nl = await again.post('/api/login', { username: 'attacker_zz4', password: 'definitely-wrong' });
++    assert.equal(nl.status, 401);
++    assert.equal(ac && 1, 1);
++  } finally { await t.stop(); }
++});
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/tests/log-worker.mjs vm/tests/log-worker.mjs
+--- base/tests/log-worker.mjs	1970-01-01 05:30:00
++++ vm/tests/log-worker.mjs	2026-11-14 18:19:31
+@@ -0,0 +1,13 @@
++// Helper for tests/admin.test.mjs: a second process-like writer (a worker thread with its own database connection) appending to the same log.
++import { parentPort, workerData } from 'node:worker_threads';
++import { openDb } from '../src/db.mjs';
++import { makeLog } from '../src/log.mjs';
++
++const db = openDb(workerData.dir);
++const log = makeLog(db, Buffer.from(workerData.key, 'hex'));
++parentPort.postMessage('ready');
++parentPort.once('message', () => {
++  for (let i = 0; i < workerData.n; i++) log.append('E', workerData.who, 'copy.printed', { seat: i, fetch: 1 });
++  db.close();
++  parentPort.postMessage('done');
++});
+diff -ruN --exclude=*.db --exclude=*.db-wal --exclude=*.db-shm --exclude=data --exclude=node_modules --exclude=.git base/tests/security.test.mjs vm/tests/security.test.mjs
+--- base/tests/security.test.mjs	2026-11-14 17:03:48
++++ vm/tests/security.test.mjs	2026-11-14 18:05:52
+@@ -147,11 +147,12 @@
+ test('FCS-G1 no user directory: nothing lists accounts, and responses carry only what the caller needs', async () => {
+   const t = await boot();
+   try {
+-    const paths = t.app.routes.map((r) => r.path).join(' ');
+-    assert.ok(!/users|accounts|search|admin/.test(paths), 'no user listing or search route exists');
++    // The operator's admin routes (flagged admin: true) are the only ones that list accounts; test A1 proves they are 404 for everyone else.
++    const paths = t.app.routes.filter((r) => !r.admin).map((r) => r.path).join(' ');
++    assert.ok(!/users|accounts|search|admin/.test(paths), 'no user listing or search route exists for ordinary users');
+     const { c } = await practiceUser(t);
+     const me = (await c.get('/api/me')).data;
+-    assert.deepEqual(Object.keys(me).sort(), ['csrf', 'display', 'exams', 'instance', 'mustChange', 'name', 'username', 'waiting']);
++    assert.deepEqual(Object.keys(me).sort(), ['admin', 'csrf', 'display', 'exams', 'instance', 'mustChange', 'name', 'username', 'waiting']);
+     assert.ok(!JSON.stringify(me).includes('pw'));
+   } finally { await t.stop(); }
+ });

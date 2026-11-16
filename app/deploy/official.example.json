@@ -1,0 +1,17 @@
+{
+  "title": "B.Tech CS core: mid-semester paper (demo)",
+  "topics": ["Data Structures", "Operating Systems", "Databases", "Computer Networks", "Algorithms"],
+  "window": { "start": "2026-11-26T09:00:00+05:30", "end": "2026-11-26T13:00:00+05:30" },
+  "seatLimit": 40,
+  "people": [
+    { "username": "setter-a", "display": "Setter A", "caps": ["submit"] },
+    { "username": "setter-b", "display": "Setter B", "caps": ["submit"] },
+    { "username": "setter-c", "display": "Setter C", "caps": ["submit"] },
+    { "username": "examcell", "display": "Exam cell", "caps": ["run", "print"] },
+    { "username": "controller", "display": "Controller", "caps": ["hold"] },
+    { "username": "dean", "display": "Dean", "caps": ["hold"] },
+    { "username": "registrar", "display": "Registrar", "caps": ["hold"] },
+    { "username": "hod", "display": "Head of Department", "caps": ["hold"] },
+    { "username": "proctor", "display": "Chief Proctor", "caps": ["hold"] }
+  ]
+}

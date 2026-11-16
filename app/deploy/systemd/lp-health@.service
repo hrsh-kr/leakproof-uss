@@ -1,0 +1,7 @@
+# One health probe of instance %i (practice, demo or official). Started by lp-health@%i.timer.
+[Unit]
+Description=LeakProof health probe (%i)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/lp-health %i

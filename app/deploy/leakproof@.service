@@ -1,0 +1,48 @@
+# One unit per instance: leakproof@practice, leakproof@demo, leakproof@official.
+# Installed by deploy/release.sh into /etc/systemd/system/. Code comes from the immutable release that
+# /srv/leakproof/current points to. Resource limits and the restart policy are in leakproof@.service.d/10-ops.conf.
+# Per-instance settings (port, LP_MODE, course code) live in /etc/leakproof/<instance>.env, outside the repo.
+[Unit]
+Description=LeakProof %i instance
+After=network.target
+
+[Service]
+User=leakproof
+Group=leakproof
+WorkingDirectory=/srv/leakproof/current
+# Keys reach the process through systemd credentials (%d); the key files stay root-only in /etc/leakproof/<instance>/.
+LoadCredential=server.key:/etc/leakproof/%i/server.key
+LoadCredential=log.key:/etc/leakproof/%i/log.key
+Environment=LP_INSTANCE=%i LP_TRUST_PROXY=1 LP_DATA_DIR=/var/lib/leakproof/%i LP_KEY_DIR=%d
+# The env file wins over Environment=: it sets LP_PORT and LP_MODE (practice or official) per instance.
+EnvironmentFile=-/etc/leakproof/%i.env
+# No ExecStartPre: the firewall is applied once at boot by leakproof-firewall.service, not at every restart.
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server.mjs
+Restart=always
+RestartSec=3
+
+# Least privilege: read-only system, writable data dir only, no new privileges, no capabilities.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+UMask=0077
+# (MemoryDenyWriteExecute is deliberately absent: V8 needs writable+executable memory.)
+ReadWritePaths=/var/lib/leakproof/%i
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

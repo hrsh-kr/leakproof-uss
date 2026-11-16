@@ -1,0 +1,44 @@
+# CI for LeakProof. No credential for the VM exists in GitHub: CI only tests; a human deploys with deploy/release.sh.
+# Make the job `test` a required status check on main if the repo plan allows branch protection.
+name: ci
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: No secrets, no forbidden files, no innerHTML
+        run: bash .github/ci/check-secrets.sh
+      - name: Browser code parses
+        run: for f in public/*.js; do node --check "$f"; done
+      - name: Shell scripts parse and pass shellcheck
+        run: |
+          for f in deploy/*.sh .github/ci/*.sh; do bash -n "$f"; done
+          shellcheck -S warning deploy/*.sh .github/ci/*.sh
+      - name: Example exam JSON is valid
+        run: node -e "JSON.parse(require('fs').readFileSync('deploy/official.example.json','utf8'))"
+      - name: SECURITY.md cites only tests that exist
+        run: node .github/ci/check-sec-tests.mjs
+      - name: Tests (none may fail, at least 52 must run)
+        run: |
+          npm test 2>&1 | tee test.log
+          awk '/^ℹ pass /{p=$3} /^ℹ fail /{f=$3} END{exit !(p>=52 && f==0)}' test.log

@@ -1,0 +1,10 @@
+# Nightly at 04:00 (VM local time). Enabled by deploy/demo-setup.sh, not at install.
+[Unit]
+Description=Nightly demo reset
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target
