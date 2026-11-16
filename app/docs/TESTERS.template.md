@@ -4,7 +4,7 @@ One page for peer testers. Read this first, then `USER_GUIDE.md`. A "functional 
 
 ## Summary
 
-LeakProof runs one exam so that nobody can read the paper early, and a leaked copy points to a seat. Setters submit encrypted questions. At sealing one question per topic is drawn and locked under a key split into 5 key cards. Three of the 5 key holders must approve, inside a print window, before the paper opens. Each seat gets the same questions in its own order. Every step is in a public, tamper-evident log.
+LeakProof runs one exam so that nobody can read the paper early, and a leaked copy points to a seat. TAs submit encrypted questions. At sealing one question per topic is drawn and locked under a key card held by the professor (1-of-1). The professor must approve, inside a print window, before the paper opens. Each seat gets the same questions in its own order. Every step is in a public, tamper-evident log.
 
 ## Where and what
 
@@ -15,7 +15,7 @@ LeakProof runs one exam so that nobody can read the paper early, and a leaked co
 | Demo pods | `https://{{VM_IP}}:7443/` (shared accounts, table below) |
 | Release | `{{RELEASE_TAG}}` |
 | Tarball | `leakproof-{{RELEASE_TAG}}.tar.gz`, SHA-256 `{{TARBALL_SHA256}}` |
-| Run the tarball yourself | Node 22.5 or newer, `npm run practice`, then `http://127.0.0.1:8080/`, course code `USS-PRACTICE`. `npm test` runs the automated tests |
+| Run the tarball yourself | Node 22.5 or newer, `npm run practice`, then `http://127.0.0.1:8080/`, course codes `LP-PROF-G19` (professor), `LP-TA-G19` (TA), `LP-STU-G19` (student). `npm test` runs the automated tests |
 
 Check the tarball: `shasum -a 256 leakproof-{{RELEASE_TAG}}.tar.gz` (or `sha256sum`) must print the SHA-256 above.
 
@@ -29,15 +29,15 @@ To check it, run `openssl x509 -in leakproof-root-ca.crt -noout -fingerprint -sh
 
 ## Credentials
 
-**Practice instance:** nobody gives you a password. Register your own account with the course code above. Your account then plays every role (setter, exam cell, all five key holders) on your own practice exam.
+**Practice instance:** nobody gives you a password. Register your own account using the role-specific course code above. A professor account plays every role on your own practice exam; register separate TA and student accounts in different windows to test role separation.
 
-**Demo pods:** 3 independent pods with 8 accounts each, for testing with separate people per role. The table below lists every account. The role column says what the account can do. If the table is replaced by a note instead, the credentials are posted separately in the class post.
+**Demo pods:** 3 independent pods with 5 accounts each, for testing with separate people per role. The table below lists every account. The role column says what the account can do. If the table is replaced by a note instead, the credentials are posted separately in the class post.
 
 {{CREDENTIALS_TABLE}}
 
 How to read it:
 
-- A username starts with `p1-`, `p2-` or `p3-` (the pod). A pod has 2 setters (`-setter-a`, `-setter-b`), 1 exam cell (`-examcell`) and 5 key holders (`-hold-1` to `-hold-5`).
+- A username starts with `p1-`, `p2-` or `p3-` (the pod). A pod has 1 professor (`-prof`), 2 TAs (`-ta-a`, `-ta-b`) and 2 students (`-stu-a`, `-stu-b`).
 - The passphrase logs you in. The recovery code sets a new passphrase if the passphrase is lost.
 - The accounts are shared on the honour system. One group per pod. Do not change a passphrase on a demo account. If a pod is broken or a passphrase was changed, we can restore it.
 - Every night at 04:00 server time the pods go back to their starting state with the same passphrases. Sessions end, open papers lock again, and saved card files stop working.
@@ -47,9 +47,9 @@ How to read it:
 
 | Account | Does |
 |---|---|
-| `-setter-a`, `-setter-b` | Each submits one question for each of the 5 topics (10 in all, needed before sealing) |
-| `-examcell` | Seals, requests release (reads the two words out), prints, answer keys, trace |
-| `-hold-1` to `-hold-5` | Each creates and verifies one card; at least 4 must verify before release; 3 approve with the two words |
+| `-prof` | Seals (after TAs submit), creates and verifies the key card, requests and approves release, prints, answer keys, trace |
+| `-ta-a`, `-ta-b` | Each submits one question for each of the 5 topics (10 in all, needed before sealing) |
+| `-stu-a`, `-stu-b` | View the released paper (student role) |
 | nobody (no login) | Reads the public log and checks a hash from a copy |
 
 ## Rules of engagement
@@ -84,8 +84,8 @@ Not tested:
 Full list: section 12 of `USER_GUIDE.md` and `SECURITY.md` section 4.
 
 - Whoever runs the server is trusted. It holds the paper in plain text while the paper is open, and could serve altered JavaScript.
-- Three colluding key holders can open the paper early. Three holders plus a copy of the database can open it offline without a log entry.
-- One key holder can veto a release.
+- The professor holds the single key card and can open the paper; the log shows it. The professor's card plus a copy of the database can open it offline without a log entry.
+- The professor can veto a release (which needs the two words); the exam cell requests again.
 - The operator picks the draw seed. The seal log entry commits to the seed's hash, so it cannot change later.
 - A trace names a seat, not a person, and may match several seats unless the options are pasted.
 - The two-word check has 14 bits, with 5 tries per holder per request, all logged.

@@ -8,7 +8,7 @@ and `COORDINATION.md` (repo root, VM copy). The wider project story (Phase I res
 ## 1. What this is, in five lines
 LeakProof is a web app that runs one university multiple-choice exam from question collection to printed per-seat copies so that
 **nobody can read the paper before the exam** and **a leaked copy points to a seat**. Setters submit encrypted questions; **Seal** draws the
-paper late and locks it under a key split 3 of 5 between key holders; **Release** needs three verified key cards, two typed words, the
+paper late and locks it under a 1-of-1 key card held by the professor; **Release** needs the professor's verified key card, two typed words, the
 print window and a seat count; each seat gets its own order; every step goes in a keyed, tamper-evident log.
 It is the Phase II deliverable of the course *Usable Security and Privacy* (CSE 347/547, IIIT-Delhi, Monsoon 2026): the class attacks every
 group's system on a VM from 18 to 25 Nov and each valid bug found in ours costs us marks.

@@ -27,11 +27,9 @@ exists, so a later breach cannot expose the pool. The draw seed is revealed afte
 Why: one rule to test (route x capability matrix), and no probing of which ids exist. *Rejected:* a role hierarchy and an admin
 account (the FCS groups' admin roles produced most of their argument-heavy bug reports).
 
-**A5. Official: one key card per account. Practice: one tester holds all five cards (labelled).** Why: a lone classmate must be able
-to run the whole flow alone; the real separation of duties is only meaningful in official/demo. *Rejected:* simulating other
-people with bots in practice.
+**A5. One key card, held by the professor (1-of-1 Shamir). Practice: the professor account holds the card.** Why: the simplest threshold that still exercises the full cryptographic path; a lone classmate can run the whole flow; the real separation of duties is shown in the demo pods. *Rejected:* 3-of-5 (adds complexity with no security gain for the course scenario; simulating five holders is friction).
 
-**A6. Three gates for release: quorum (3 distinct verified cards), print window, seat count.** Each approval is bound to one request
+**A6. Three gates for release: quorum (1 verified card), print window, seat count.** Each approval is bound to one request
 (nonce, seats, 15-minute expiry). Why: fail-closed, each gate names itself and who must act. The window and seat count are set by
 the exam cell, so they protect against accidents, not a malicious cell (stated in SECURITY.md section 4).
 
@@ -40,7 +38,7 @@ approving this exact request, not a replay. 14 bits is weak on purpose (a presen
 out that holder only (`R5-S7`). *Rejected:* a longer code (usability cost), no check (blind approval).
 
 **A8. A restart re-locks the paper.** The open paper lives only in memory; a pending request becomes `interrupted`. Why: nothing
-decrypted ever touches disk. The cost is that an unplanned restart mid-exam needs 3 holders again, so the watchdog never
+decrypted ever touches disk. The cost is that an unplanned restart mid-exam needs the professor to approve again, so the watchdog never
 auto-restarts official or demo (C5-7).
 
 **A9. Trace by question and option order; a trace names a seat, never a person.** Why: honest limits (a leaker may be whoever
@@ -55,19 +53,16 @@ same marks") cannot be shown; Phase I found 49% fear wrong answer keys. Verified
 **B1. `node:crypto` only: AES-256-GCM, HMAC-SHA-256, scrypt, PBKDF2 (browser), CSPRNG; no crypto libraries.**
 Why: fewer dependencies, fewer CVE reports, and the primitives are standard. *Rejected:* libsodium, Argon2.
 
-**B2. Shamir 3-of-5 over GF(2^521 - 1), duplicate shares rejected.** Why: the field is larger than any 256-bit key; the old demo
-used a 127-bit field and accepted duplicates (both listed as defects to never reintroduce). The paper key is a fresh raw
-256-bit random value, never a hash of a hex string.
+**B2. Shamir 1-of-1 over GF(2^521 - 1), duplicate shares rejected.** Why: threshold 1 still exercises the full Shamir construction (split + combine path, field arithmetic) while keeping the UX simple for the course setting; the field is larger than any 256-bit key; the old demo used a 127-bit field and accepted duplicates (both defects are still absent). The paper key is a fresh raw 256-bit random value, never a hash of a hex string.
 
 **B3. Questions are encrypted on the server at submit (AES-GCM, authenticated data = exam id + question id); not in the browser.**
 Why: the server holds the key anyway and the same server serves the page, so browser-side encryption adds almost no security
 for about a day of work. Recorded as an upgrade path, not claimed. *Rejected:* a pool public key for setters (needs HTTPS-only
 WebCrypto on every setter and still lets the operator read the pool).
 
-**B4. Key cards are encrypted in the holder's browser (PBKDF2-SHA256 600k + AES-GCM, authenticated data = exam id + slot) and the server
+**B4. The key card is encrypted in the professor's browser (PBKDF2-SHA256 600k + AES-GCM, authenticated data = exam id + slot) and the server
 deletes its copy once the holder proves they can open the card (verify-on-claim).** Why: after verification the data-at-rest
-thief gets nothing; before it, the quorum is only a software rule (stated). Release needs at least 4 verified cards so one lost
-card is survivable. *Changes:* card passphrase minimum raised to 14 characters (`C2` cryptographer: a stolen card file falls
+thief gets nothing; before it, the quorum is only a software rule (stated). *Changes:* card passphrase minimum raised to 14 characters (`C2` cryptographer: a stolen card file falls
 to a weak human passphrase). *Rejected:* a word-list card (readable if the file leaks), a card the server stores forever.
 
 **B5. The log is an append-only table chained with HMAC-SHA-256 under a key kept outside the database; its head is printed on every
@@ -105,7 +100,7 @@ sensitive/min per account, 30 sign-ups/day per address, 2000 accounts. Why: FCS 
 and filed it as DoS. All limits are env variables, so they can be tuned after the freeze without code changes.
 
 **C5. Official accounts made by an operator must change their passphrase at first login (`must_change`).** Why: the operator saw every
-printed passphrase and could otherwise claim all five key cards. *Exception:* demo pods are created with `--demo` (no forced change)
+printed passphrase and could otherwise claim the professor key card. *Exception:* demo pods are created with `--demo` (no forced change)
 so the posted credentials stay valid (see E3).
 
 **C6. The service stays up and says when it is not sound.** `/healthz` runs `SELECT 1` and a cached `quick_check`; a failed integrity check or
@@ -155,14 +150,13 @@ pull-request code on the machine that holds the keys), push-deploy, a pull timer
 the SSH accept rule is verified.** SSH hardening (`harden-ssh.sh --apply`) is a separate, explicit step. Why: locking the owner out of the VM is
 the worst outcome. *Unverified:* ufw behaviour and the `hashlimit` module on the VM (needs a rehearsal).
 
-**D7. Fixed practice course code `LEAKPROOF-G19`** (still overridable in `/etc/leakproof/practice.env`). Why: a random code per install made the guide
-depend on deployment output; the code only gates bots, and testers get it from the guide anyway.
+**D7. Fixed role-based course codes: `LP-PROF-G19` (professor), `LP-TA-G19` (TA), `LP-STU-G19` (student).** The legacy code `USS-PRACTICE` still maps to professor for backward compatibility. Overridable in `/etc/leakproof/practice.env`. Why: static codes mean the guide is always accurate; role selection at registration removes ambiguity about what each account can do.
 
 **D8. Three instances.** `practice` (self-registration, :8443 to 8080), `demo` (:7443 to 7090, official mode) and `official` (:9443 to 9090, off until the
 25 Nov exam night; its Caddy block is commented out until `enable-official.sh`, so a closed service does not answer 502).
 `LP_MODE` (practice|official, case-insensitive, unknown values refuse to start) decides behaviour; the instance name only names directories.
 
-**D9. Demo credentials for each role = three independent demo "pods" of 8 accounts (2 setters, exam cell, 5 key holders), restored nightly from a golden snapshot
+**D9. Demo credentials for each role = three independent demo "pods" of 5 accounts each (1 professor, 2 TAs, 2 students), restored nightly from a golden snapshot
 so the posted passphrases stay valid.** Why: the course asks for credentials for each role, practice accounts hold every role, and one shared set would let
 three groups collide. The credentials file is generated on the VM (mode 0600, never in git) and appears only in the 18 Nov tester post, not in the 17 Nov
 upload. Shared accounts are by honour system (a tester can change a passphrase; the nightly restore fixes it).

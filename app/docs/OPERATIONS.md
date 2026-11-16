@@ -116,7 +116,7 @@ sudo bash deploy/harden-ssh.sh --apply    # only after a second terminal is logg
 # 6. Demo pods (section 11), backups check (section 10), package (section 15).
 ```
 
-`install.sh` prints the course code (default `LEAKPROOF-G19`) and, once Caddy has made its root certificate, the root
+`install.sh` prints the role-based course codes (`LP-PROF-G19`, `LP-TA-G19`, `LP-STU-G19`) and, once Caddy has made its root certificate, the root
 certificate SHA-256. If the root certificate is not there yet, open `https://192.168.2.238:8443/` once in a browser and rerun
 `make-package.sh` later. Re-running `install.sh` is safe: existing keys, env files and data are never overwritten (an existing
 practice course code is kept; edit `/etc/leakproof/practice.env` and `sudo systemctl restart leakproof@practice` to change it).
@@ -216,7 +216,7 @@ Restore a database: stop the instance, move the old data dir to `quarantine`, co
 
 ## 11. Demo pods
 
-Three independent pods of 8 accounts each (2 setters, exam cell, 5 key holders) on the demo instance (`https://192.168.2.238:7443/`),
+Three independent pods of 5 accounts each (1 professor, 2 TAs, 2 students) on the demo instance (`https://192.168.2.238:7443/`),
 running in official mode, accounts without the forced passphrase change, shared by honour system (one group per pod).
 
 Provision (M2, once, after a release that has `official-setup.mjs --demo --out`):
@@ -228,7 +228,7 @@ sudo cat /etc/leakproof/demo-credentials.md      # the table to post (24 rows, r
 
 It prints no passphrase, writes `/etc/leakproof/demo-credentials.md` (0600), takes the golden snapshot
 `/var/backups/leakproof/golden-demo.tgz` (+ SHA-256) and enables the nightly reset (04:00). Check in a browser that the page
-shows the Official label and that `p1-setter-a` can log in. Exam window defaults: 18 Nov 00:00 to 29 Nov 23:00 (`DEMO_START`, `DEMO_END`).
+shows the Official label and that `p1-prof` can log in. Exam window defaults: 18 Nov 00:00 to 29 Nov 23:00 (`DEMO_START`, `DEMO_END`).
 
 Reset (a tester changed a passphrase, or the pods are a mess): `sudo lp-demo-reset`. The same credentials work again, because the
 golden snapshot holds the same hashes; the old data is kept in `quarantine`. `demo-setup.sh` refuses to run twice (a rebuild
