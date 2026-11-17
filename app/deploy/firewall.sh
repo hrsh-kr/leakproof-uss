@@ -2,14 +2,15 @@
 # LeakProof network rules. Installed as /usr/local/sbin/lp-firewall and run once per boot by
 # leakproof-firewall.service (and by install.sh, once, by hand).  Needs root.  Idempotent.
 #
-# What it changes (it only ever ADDS rules; it never deletes or reorders a rule it did not add):
+# What it changes:
 #   * ufw ACTIVE (the course VM): allow tcp 22 and the web ports through ufw. ufw's policy is left alone.
 #   * ufw INACTIVE: plain iptables: loopback, established, SSH, web ports, ICMP, DHCP replies, then
 #     policy DROP. The DROP is set only after the SSH accept rule is verified present, and not at all when
 #     no listening sshd port can be found, so this script cannot lock you out of the VM.
-#   * both: per-source limit of 50 concurrent connections on the web ports, and (if the kernel module
-#     exists) a rate limit on NEW ssh connections per source. Every iptables rule carries the comment
-#     "lp-fw", so `iptables -S | grep lp-fw` lists exactly what this script added.
+#   * both: a dedicated lp-drops chain (flushed and rebuilt on every run so rule order is always correct)
+#     with per-source connection caps and new-connection rate limits on web ports. The chain is jumped to
+#     from INPUT position 1 so it fires before any pre-existing ACCEPT rules.
+#     Every iptables rule carries the comment "lp-fw".
 # Failure of any optional rule prints a note and continues; the script never blocks the app.
 #
 # Usage: sudo bash deploy/firewall.sh [--status|--help]
@@ -19,7 +20,7 @@ set -euo pipefail
 WEB_PORTS="8443 7443 9443"
 case "${1:-}" in
   --help|-h) sed -n '2,/^set -/{/^set -/!p;}' "$0"; exit 0 ;;
-  --status) command -v ufw >/dev/null && ufw status verbose || true; iptables -S INPUT | grep -E 'lp-fw|^-P' || true; exit 0 ;;
+  --status) command -v ufw >/dev/null && ufw status verbose || true; iptables -S INPUT | grep -E 'lp-fw|^-P' || true; iptables -S lp-drops 2>/dev/null || true; exit 0 ;;
   "") ;;
   *) echo "unknown option $1" >&2; exit 2 ;;
 esac
@@ -47,6 +48,43 @@ ours() {
 }
 note=()
 
+# lp_drops_setup: build (or rebuild) the lp-drops chain for one iptables variant (iptables or ip6tables).
+# The chain is FLUSHED on every run so rules are always added in the correct order, regardless of prior
+# runs that may have left stale rules after ACCEPT entries in INPUT. The jump from INPUT is inserted at
+# position 1 so it fires before any pre-existing ACCEPT rules.
+lp_drops_setup() {
+  local ipt="${1:-iptables}"
+  local ports_csv="${WEB_PORTS// /,}"
+  local ipv6="${2:-0}"
+
+  # Create chain if absent; flush it so a re-run rebuilds from scratch.
+  "$ipt" -w -N lp-drops 2>/dev/null || true
+  "$ipt" -w -F lp-drops
+
+  # Ensure the INPUT→lp-drops jump is at position 1 (idempotent: skip if already present).
+  "$ipt" -w -C INPUT -j lp-drops -m comment --comment lp-fw 2>/dev/null \
+    || "$ipt" -w -I INPUT 1 -j lp-drops -m comment --comment lp-fw
+
+  # Per-source concurrent connection cap (15 = enough for any single browser; matches VajraKavach nginx limit_conn 15).
+  # DROP (not REJECT) avoids generating a RST storm when 500 VUs are blocked simultaneously.
+  "$ipt" -w -A lp-drops -p tcp --syn -m multiport --dports "$ports_csv" \
+    -m connlimit --connlimit-above 15 --connlimit-mask 32 \
+    -j DROP 2>/dev/null \
+    || note+=("connlimit unavailable on $ipt: skipped")
+
+  # Per-source NEW TCP connection rate limit: 20/sec, burst 20.
+  # Keeps TLS-handshake cost bounded even when the connlimit lets short bursts through.
+  if [ "$ipv6" = 0 ]; then
+    for p in $WEB_PORTS; do
+      "$ipt" -w -A lp-drops -p tcp --dport "$p" --syn \
+        -m hashlimit --hashlimit-name "lp-web-$p" --hashlimit-mode srcip \
+        --hashlimit-above 20/sec --hashlimit-burst 20 \
+        -j DROP 2>/dev/null \
+        || note+=("hashlimit unavailable for web port $p ($ipt): skipped")
+    done
+  fi
+}
+
 if command -v ufw >/dev/null && ufw status 2>/dev/null | head -1 | grep -qi '^Status: active'; then
   MODE=ufw
   for p in $SSH_ALLOW $WEB_PORTS; do ufw allow "$p/tcp" >/dev/null && echo "ufw: allow $p/tcp"; done
@@ -58,20 +96,8 @@ else
   ours -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 fi
 
-# Per-source cap on concurrent connections to the web ports (a hostel NAT counts as one address).
-# 25 concurrent connections is enough for any single legitimate browser; 50-thread floods are cut off.
-lim_web() { ours -p tcp --syn -m multiport --dports "${WEB_PORTS// /,}" -m connlimit --connlimit-above 25 --connlimit-mask 32 -j REJECT --reject-with tcp-reset; }
-lim_web || note+=("connlimit unavailable: skipped")
-
-# Per-source rate limit on NEW TCP connections to the web ports (DOS-08/DOS-10: TLS-handshake flood defence).
-# 20 new connections/sec with burst of 40; a human browser makes ≪1/sec, an attacker sending 50+ threads/sec is dropped.
-for p in $WEB_PORTS; do
-  ours -p tcp --dport "$p" --syn \
-    -m hashlimit --hashlimit-name "lp-web-$p" --hashlimit-mode srcip \
-    --hashlimit-above 20/sec --hashlimit-burst 40 \
-    -j DROP 2>/dev/null \
-    || note+=("hashlimit unavailable for web port $p: skipped")
-done
+# Build the lp-drops filter chain (always, both modes — in ufw mode it fires before ufw's own chains).
+lp_drops_setup iptables 0
 
 # SSH: rate limit on NEW connections per source, with an exemption list. Needs xt_hashlimit; skipped if absent.
 for p in $SSH_ALLOW; do
@@ -102,6 +128,7 @@ if [ "$MODE" = iptables ]; then
     ours6() { ip6tables -w -C INPUT "$@" -m comment --comment lp-fw 2>/dev/null || ip6tables -w -A INPUT "$@" -m comment --comment lp-fw; }
     ours6 -i lo -j ACCEPT
     ours6 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    lp_drops_setup ip6tables 1
     for p in $SSH_ALLOW; do ours6 -p tcp --dport "$p" -j ACCEPT; done
     ours6 -p tcp -m multiport --dports "${WEB_PORTS// /,}" -j ACCEPT
     ours6 -p ipv6-icmp -j ACCEPT   # neighbour discovery needs it

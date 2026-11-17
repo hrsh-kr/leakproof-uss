@@ -1,6 +1,6 @@
 {
   "name": "leakproof",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "private": true,
   "description": "Leak-resistant exam pipeline (UsS course project, Phase II). Zero dependencies.",
   "type": "module",
