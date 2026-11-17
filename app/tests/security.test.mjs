@@ -56,6 +56,34 @@ test('SR1 official instance: capabilities are separate and one key card per acco
   } finally { await t.stop(); }
 });
 
+test('pentest F-04: LP_PROXY_SECRET prevents X-Real-IP forgery from direct Node connections', async () => {
+  const t = await boot({ LP_TRUST_PROXY: '1', LP_PROXY_SECRET: 'testsecret42' });
+  try {
+    const u = await practiceUser(t, 'alice_f04');
+    const c = t.client();
+    // Without the proxy secret, loopback connections cannot forge X-Real-IP — rate limit uses actual socket IP.
+    // Burn 5 attempts without secret (each counts against the same loopback IP, not against a fake rotating IP).
+    for (let i = 0; i < 5; i++) await c.post('/api/login', { username: 'alice_f04', password: 'x' }, { 'x-real-ip': `10.0.0.${i}` });
+    const blocked = await c.post('/api/login', { username: 'alice_f04', password: u.passphrase }, { 'x-real-ip': '10.0.0.99' });
+    assert.equal(blocked.status, 429, 'without proxy secret, rotating fake IPs should not bypass the lockout');
+
+    // With the correct proxy secret, Caddy-proxied IPs ARE trusted normally.
+    const c2 = t.client();
+    const good = await c2.post('/api/login',
+      { username: 'alice_f04', password: u.passphrase },
+      { 'x-real-ip': '10.0.1.1', 'x-lp-proxy-secret': 'testsecret42' });
+    assert.equal(good.status, 200, 'correct proxy secret: X-Real-IP is trusted');
+
+    // Wrong secret: X-Real-IP is ignored (falls back to actual socket IP).
+    const c3 = t.client();
+    for (let i = 0; i < 5; i++) await c3.post('/api/login', { username: 'alice_f04', password: 'x' },
+      { 'x-real-ip': '10.0.2.1', 'x-lp-proxy-secret': 'wrong' });
+    const blockedWrong = await c3.post('/api/login', { username: 'alice_f04', password: u.passphrase },
+      { 'x-real-ip': '10.0.2.99', 'x-lp-proxy-secret': 'wrong' });
+    assert.equal(blockedWrong.status, 429, 'wrong proxy secret: rotating IPs do not help');
+  } finally { await t.stop(); }
+});
+
 test('SR2 login: one message for unknown user and wrong passphrase; backoff is per user AND client, so it cannot lock others out', async () => {
   const t = await boot({ LP_TRUST_PROXY: '1' });
   try {

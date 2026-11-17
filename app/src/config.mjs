@@ -18,6 +18,7 @@ export function loadConfig(env = process.env) {
     port: Number(env.LP_PORT || (mode === 'official' ? 9090 : 8080)),
     host: env.LP_HOST || '127.0.0.1',
     trustProxy: env.LP_TRUST_PROXY === '1',          // only then is X-Real-IP from 127.0.0.1 believed
+    proxySecret: env.LP_PROXY_SECRET || null,          // F-04: shared secret Caddy injects; Node ignores X-Real-IP without it
     origin: env.LP_ORIGIN || null,                    // optional fixed origin for the Origin check; null = https://<Host header>
     inviteCodeProf: env.LP_INVITE_PROF || 'LP-PROF-G19',
     inviteCodeTa: env.LP_INVITE_TA || 'LP-TA-G19',

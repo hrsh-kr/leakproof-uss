@@ -106,9 +106,14 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
 
   // ---------- helpers ----------
   // The rate-limit identity of a client. IPv6 addresses count per /64: one host is normally given a whole /64.
+  // F-04: when LP_PROXY_SECRET is set, only trust X-Real-IP from Caddy requests that carry the matching secret.
+  // This prevents any other local process from forging a rate-limit identity by connecting directly to Node.
   const clientIp = (req) => {
     const direct = req.socket.remoteAddress || '';
-    if (config.trustProxy && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(direct) && req.headers['x-real-ip']) return ipKey(String(req.headers['x-real-ip']).slice(0, 64));
+    if (config.trustProxy && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(direct) && req.headers['x-real-ip']) {
+      if (!config.proxySecret || req.headers['x-lp-proxy-secret'] === config.proxySecret)
+        return ipKey(String(req.headers['x-real-ip']).slice(0, 64));
+    }
     return ipKey(direct);
   };
   const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : null);

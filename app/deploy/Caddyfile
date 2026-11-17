@@ -8,6 +8,7 @@
 # Ports:  8443 practice (to 8080) | 7443 demo (to 7090) | 9443 official (to 9090, added on exam night by
 # deploy/enable-official.sh through /etc/caddy/leakproof.d/official.caddy, so it never answers 502 while off).
 {
+	admin off  # F-06: disable unauthenticated admin API; config changes require a Caddy reload, not a live API call
 	servers {
 		protocols h1 # HTTP/1.1 only: removes the HTTP/2 Rapid Reset class tried on FCS Group 1
 		timeouts {
@@ -40,8 +41,10 @@
 		format json
 	}
 	reverse_proxy {args[0]} {
-		# The app believes X-Real-IP only from 127.0.0.1 (LP_TRUST_PROXY=1); clients cannot spoof it.
+		# F-04: X-Real-IP is trusted only when this secret header is also present (LP_PROXY_SECRET in app env).
+		# This prevents shell users from forging rate-limit identities by hitting Node directly on 127.0.0.1.
 		header_up X-Real-IP {remote_host}
+		header_up X-LP-Proxy-Secret {env.LP_PROXY_SECRET}
 		header_up -X-Forwarded-For
 	}
 }
