@@ -19,7 +19,6 @@ export function loadConfig(env = process.env) {
     host: env.LP_HOST || '127.0.0.1',
     trustProxy: env.LP_TRUST_PROXY === '1',          // only then is X-Real-IP from 127.0.0.1 believed
     origin: env.LP_ORIGIN || null,                    // optional fixed origin for the Origin check; null = https://<Host header>
-    inviteCode: env.LP_INVITE_CODE || 'USS-PRACTICE', // kept for backward compat; role codes below take precedence
     inviteCodeProf: env.LP_INVITE_PROF || 'LP-PROF-G19',
     inviteCodeTa: env.LP_INVITE_TA || 'LP-TA-G19',
     inviteCodeStudent: env.LP_INVITE_STUDENT || 'LP-STU-G19',

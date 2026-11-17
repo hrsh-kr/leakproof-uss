@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig, loadKey } from './src/config.mjs';
 import { openDb } from './src/db.mjs';
 import { createApp } from './src/app.mjs';
-import { staticFiles, SECURITY_HEADERS } from './src/http.mjs';
+import { staticFiles, SECURITY_HEADERS, ipKey } from './src/http.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -56,8 +56,9 @@ export async function start(config = loadConfig()) {
   const perIp = new Map();
   const PER_IP = config.perIpSockets;
   server.on('connection', (sock) => {
-    const ip = sock.remoteAddress || '';
-    if (config.trustProxy && /127\.0\.0\.1$|^::1$/.test(ip)) return;
+    const raw = sock.remoteAddress || '';
+    if (config.trustProxy && /127\.0\.0\.1$|^::1$/.test(raw)) return;
+    const ip = ipKey(raw); // IPv6 per /64, like the rate limits
     const n = (perIp.get(ip) || 0) + 1;
     if (n > PER_IP) { sock.destroy(); return; }
     perIp.set(ip, n);

@@ -28,7 +28,15 @@ export function open(key, box, aad) {
 // Passwords: scrypt with a per-user salt, ~60 ms per check, run on the thread pool so a login flood
 // cannot freeze the event loop for everyone else.
 const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
-const scrypt = (pw, salt) => new Promise((res, rej) => crypto.scrypt(pw, salt, 32, SCRYPT, (e, k) => (e ? rej(e) : res(k))));
+// At most MAX_HASHING checks run or wait at once (32 MiB each); beyond that a request is refused at once (busy) rather than
+// queued, so a flood of logins from many addresses cannot pile up memory or make every real login wait minutes.
+export const MAX_HASHING = 32;
+let hashing = 0;
+const scrypt = (pw, salt) => {
+  if (hashing >= MAX_HASHING) return Promise.reject(Object.assign(new Error('password hashing busy'), { busy: true }));
+  hashing++;
+  return new Promise((res, rej) => crypto.scrypt(pw, salt, 32, SCRYPT, (e, k) => { hashing--; e ? rej(e) : res(k); }));
+};
 export async function hashPassword(pw) {
   const salt = rand(16);
   return 's1$' + salt.toString('base64') + '$' + (await scrypt(pw, salt)).toString('base64');

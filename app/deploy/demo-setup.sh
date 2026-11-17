@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build the DEMO instance: three independent pods (8 accounts each: 2 setters, exam cell, 5 key holders) running
-# in official mode, so graders and testers can run the full 3-of-5 flow without disturbing each other.
+# Build the DEMO instance: three independent pods (5 accounts each: 1 professor, 2 TAs, 2 students) running
+# in official mode, so graders and testers can run the full pipeline without disturbing each other.
 #   sudo bash deploy/demo-setup.sh [--force]
 # What it changes: creates the demo exam data in /var/lib/leakproof/demo with scripts/official-setup.mjs --demo
 # (accounts WITHOUT forced passphrase change); writes the credentials table to /etc/leakproof/demo-credentials.md
@@ -44,14 +44,11 @@ for p in 1 2 3; do
 { "title": "Demo pod $p: B.Tech CS core", "topics": ["Data Structures","Operating Systems","Databases","Computer Networks","Algorithms"],
   "window": { "start": "$START", "end": "$END" }, "seatLimit": 40,
   "people": [
-    { "username": "p$p-setter-a", "display": "Setter A", "caps": ["submit"] },
-    { "username": "p$p-setter-b", "display": "Setter B", "caps": ["submit"] },
-    { "username": "p$p-examcell", "display": "Exam cell", "caps": ["run","print"] },
-    { "username": "p$p-hold-1", "display": "Key holder 1", "caps": ["hold"] },
-    { "username": "p$p-hold-2", "display": "Key holder 2", "caps": ["hold"] },
-    { "username": "p$p-hold-3", "display": "Key holder 3", "caps": ["hold"] },
-    { "username": "p$p-hold-4", "display": "Key holder 4", "caps": ["hold"] },
-    { "username": "p$p-hold-5", "display": "Key holder 5", "caps": ["hold"] } ] }
+    { "username": "pod$p-professor", "display": "Professor (pod $p)", "caps": ["run","print","hold"] },
+    { "username": "pod$p-ta-1", "display": "TA 1 (pod $p)", "caps": ["submit"] },
+    { "username": "pod$p-ta-2", "display": "TA 2 (pod $p)", "caps": ["submit"] },
+    { "username": "pod$p-student-1", "display": "Student 1 (pod $p)", "caps": ["attempt"] },
+    { "username": "pod$p-student-2", "display": "Student 2 (pod $p)", "caps": ["attempt"] } ] }
 JSON
   chown leakproof:leakproof "$W/pod$p.json"
   runuser -u leakproof -- env LP_MODE=official LP_INSTANCE=demo LP_DATA_DIR="$DATA" LP_KEY_DIR="$W/keys" \
@@ -64,7 +61,7 @@ done
   echo; echo "| role | username | passphrase | recovery code |"; echo "|---|---|---|---|"
   for p in 1 2 3; do grep -E '^\| ' "$W/pod$p.md" | grep -vE '^\| role ' || true; done
 } > "$W/all.md"
-[ "$(grep -c '^| p[123]-' "$W/all.md")" = 24 ] || { echo "expected 24 account rows; the setup output has an unexpected format. Nothing published." >&2; exit 1; }
+[ "$(grep -cE '^\| [A-Za-z]+ \| pod[123]-' "$W/all.md")" = 15 ] || { echo "expected 15 account rows; the setup output has an unexpected format. Nothing published." >&2; exit 1; }
 install -m 0600 -o root -g root "$W/all.md" "$CRED"
 
 chown -R leakproof:leakproof "$DATA"
@@ -74,6 +71,6 @@ systemctl enable --now leakproof@demo >/dev/null
 systemctl enable --now lp-demo-reset.timer >/dev/null
 for _ in $(seq 1 30); do curl -fs --max-time 3 http://127.0.0.1:7090/healthz | grep -q '"ok":true' && break; sleep 1; done
 curl -fs --max-time 3 http://127.0.0.1:7090/healthz | grep -q '"ok":true' || { echo "demo did not start: journalctl -u leakproof@demo -n 50" >&2; exit 1; }
-echo "demo ready: https://$VM_IP:7443/   24 accounts in $CRED (root only)"
-echo "golden snapshot: $GOLD   Next: log in as p1-setter-a in a browser and check that the page says Official."
+echo "demo ready: https://$VM_IP:7443/   15 accounts in $CRED (root only)"
+echo "golden snapshot: $GOLD   Next: log in as pod1-professor in a browser and check that the page says Demo."
 echo "Copy the credentials file to the person who posts it: sudo cat $CRED"

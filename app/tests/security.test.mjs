@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import net from 'node:net';
-import { boot, practiceUser, sealAndVerify, releaseOpen } from './helpers.mjs';
+import { boot, practiceUser, sealAndVerify, releaseOpen, joinAs, PW, NEWPW } from './helpers.mjs';
 
 const rawRequest = (port, text) => new Promise((resolve) => {
   const s = net.connect(port, '127.0.0.1', () => s.write(text));
@@ -19,7 +19,7 @@ test('SR1 route matrix: every route is denied without a session or without the c
     const shares = await sealAndVerify(a.c, a.examId);
     const { rid } = await releaseOpen(a.c, a.examId, shares, 3);
     const qid = t.db.prepare('SELECT id FROM questions WHERE exam_id = ? LIMIT 1').get(a.examId).id;
-    const fill = (p) => p.replace(':id', a.examId).replace(':rid', rid).replace(':qid', qid).replace(':slot', '1').replace(':seat', '1');
+    const fill = (p) => p.replace(':id', a.examId).replace(':rid', rid).replace(':qid', qid).replace(':slot', '1').replace(':seat', '1').replace(':aid', '0'.repeat(32));
     const anon = t.client();
     for (const r of t.app.routes) {
       assert.ok(['none', 'session'].includes(r.auth), `${r.method} ${r.path} must declare auth`);
@@ -51,7 +51,7 @@ test('SR1 official instance: capabilities are separate and one key card per acco
     const s = await login('setter1', setter.passphrase), k = await login('dean', dean.passphrase);
     assert.equal((await s.post(`/api/exams/${id}/seal`)).status, 404, 'a setter cannot seal');
     assert.equal((await k.get(`/api/exams/${id}/questions`)).status, 404, 'a key holder cannot read questions');
-    assert.equal((await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'x1x', display: 'x' })).status, 404);
+    assert.equal((await t.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'x1x', display: 'x' })).status, 404);
     assert.equal((await s.post('/api/practice/reset')).status, 404);
   } finally { await t.stop(); }
 });
@@ -77,7 +77,9 @@ test('SR2 sessions: cookie flags, logout really ends the session, idle sessions 
   const t = await boot();
   try {
     const { c, examId } = await practiceUser(t);
-    const cookieLine = (await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'flagcheck', display: 'Flag' })).headers.get('set-cookie');
+    const fresh = await t.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'flagcheck', display: 'Flag' });
+    assert.equal(fresh.headers.get('set-cookie'), null, 'sign-up starts no session: Back on the secrets page cannot land anyone logged in');
+    const cookieLine = (await t.client().post('/api/login', { username: 'flagcheck', password: PW })).headers.get('set-cookie');
     assert.match(cookieLine, /HttpOnly/); assert.match(cookieLine, /SameSite=Strict/); assert.match(cookieLine, /Path=\//);
     // CSRF: a state change without the token, with a wrong token, or from another origin is refused.
     assert.equal((await c.post(`/api/exams/${examId}/seal`, {}, { 'x-csrf-token': '' })).status, 403);
@@ -105,8 +107,10 @@ test('SR2 sessions: cookie flags, logout really ends the session, idle sessions 
 test('SR2 HTTPS mode: __Host- cookie with Secure, and HSTS', async () => {
   const t = await boot({ LP_DEV_HTTP: '0' });
   try {
-    const r = await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'secureone', display: 'Sec' });
+    const reg = await t.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'secureone', display: 'Sec' });
+    const r = await t.client().post('/api/login', { username: 'secureone', password: PW });
     assert.match(r.headers.get('set-cookie'), /^__Host-lp_sid=.*; Secure/);
+    assert.match(r.headers.getSetCookie()[1], /^__Host-lp_dev=.*HttpOnly; SameSite=Strict; Secure/, 'device cookie has the same strict flags');
     assert.match(r.headers.get('strict-transport-security'), /max-age=31536000/);
   } finally { await t.stop(); }
 });
@@ -115,21 +119,22 @@ test('FCS-G1 no forgotten-passphrase dead end: the recovery code sets a new pass
   const t = await boot();
   try {
     const u = await practiceUser(t, 'bob');
-    const wrong = await t.client().post('/api/recover', { username: 'bob', recovery: 'nope-nope-nope' });
+    const wrong = await t.client().post('/api/recover', { next: NEWPW, username: 'bob', recovery: 'nope-nope-nope' });
     assert.equal(wrong.status, 401);
-    const r = await t.client().post('/api/recover', { username: 'bob', recovery: u.recovery });
+    const r = await t.client().post('/api/recover', { next: NEWPW, username: 'bob', recovery: u.recovery });
     assert.equal(r.status, 200);
     assert.equal((await u.c.get('/api/me')).status, 401, 'old session signed out');
     assert.equal((await t.client().post('/api/login', { username: 'bob', password: u.passphrase })).status, 401, 'old passphrase dead');
-    assert.equal((await t.client().post('/api/login', { username: 'bob', password: r.data.passphrase })).status, 200);
-    assert.equal((await t.client().post('/api/recover', { username: 'bob', recovery: u.recovery })).status, 401, 'recovery code is single-use');
+    assert.equal(r.data.passphrase, undefined, 'no password is ever sent back'); assert.ok(r.data.recovery && r.data.recovery !== u.recovery, 'a fresh recovery code');
+    assert.equal((await t.client().post('/api/login', { username: 'bob', password: NEWPW })).status, 200, 'the chosen new password works');
+    assert.equal((await t.client().post('/api/recover', { next: NEWPW, username: 'bob', recovery: u.recovery })).status, 401, 'recovery code is single-use');
   } finally { await t.stop(); }
 });
 
 test('FCS-G1 no unverified mass sign-up: registration needs the course code, is capped per client per day and in total', async () => {
   const t = await boot({ LP_REGISTER_PER_IP: '2', LP_MAX_ACCOUNTS: '5' }); // only successful sign-ups count (shared networks)
   try {
-    const reg = (u, inv = 'USS-PRACTICE') => t.client().post('/api/register', { invite: inv, role: 'professor', username: u, display: 'Xy' });
+    const reg = (u, inv = 'LP-PROF-G19') => t.client().post('/api/register', { password: PW, invite: inv, role: 'professor', username: u, display: 'Xy' });
     assert.equal((await reg('nocode1', 'guess')).status, 403);
     assert.equal((await reg('first1')).status, 201);
     assert.equal((await reg('first1')).status, 409, 'username taken');
@@ -139,8 +144,8 @@ test('FCS-G1 no unverified mass sign-up: registration needs the course code, is 
   } finally { await t.stop(); }
   const t2 = await boot({ LP_MAX_ACCOUNTS: '1' });
   try {
-    assert.equal((await t2.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'only1', display: 'Xy' })).status, 201);
-    assert.equal((await t2.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'only2', display: 'Xy' })).status, 503);
+    assert.equal((await t2.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'only1', display: 'Xy' })).status, 201);
+    assert.equal((await t2.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'only2', display: 'Xy' })).status, 503);
   } finally { await t2.stop(); }
 });
 
@@ -161,7 +166,7 @@ test('SR10 inputs: XSS stays inert text, injection-shaped input is refused, over
   try {
     const { c, examId } = await practiceUser(t);
     const tac = t.client();
-    const taReg = await tac.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: 'ta-sr10-' + (Date.now() % 9999), display: 'TA SR10' });
+    const taReg = await joinAs(tac, 'ta', c, examId, 'ta-sr10-' + (Date.now() % 9999), 'TA SR10');
     assert.equal(taReg.status, 201);
     const xss = '<img src=x onerror=alert(1)><script>alert(2)</script>';
     const r = await tac.post(`/api/exams/${examId}/questions`, { topic: 4, text: xss, options: ["' OR 1=1 --", 'b', 'c', 'd'], correct: 1 });
@@ -170,7 +175,7 @@ test('SR10 inputs: XSS stays inert text, injection-shaped input is refused, over
     assert.equal(back.text, xss, 'stored as plain text, never interpreted');
     assert.equal(back.options[0], "' OR 1=1 --");
     assert.equal((await c.post('/api/login', { username: "admin'--", password: "' OR '1'='1" })).status, 401);
-    assert.equal((await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: "x'; DROP TABLE accounts;--", display: 'x' })).status, 400);
+    assert.equal((await t.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: "x'; DROP TABLE accounts;--", display: 'x' })).status, 400);
     assert.equal((await tac.post(`/api/exams/${examId}/questions`, { topic: 5, text: 'x'.repeat(20_000), options: [], correct: 0 })).status, 413);
     assert.equal((await tac.post(`/api/exams/${examId}/questions`, '{"topic": 1,', { 'content-type': 'application/json' })).status, 400);
     assert.equal((await tac.post(`/api/exams/${examId}/questions`, 'topic=1', { 'content-type': 'application/x-www-form-urlencoded' })).status, 415);

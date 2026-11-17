@@ -228,7 +228,7 @@ sudo cat /etc/leakproof/demo-credentials.md      # the table to post (24 rows, r
 
 It prints no passphrase, writes `/etc/leakproof/demo-credentials.md` (0600), takes the golden snapshot
 `/var/backups/leakproof/golden-demo.tgz` (+ SHA-256) and enables the nightly reset (04:00). Check in a browser that the page
-shows the Official label and that `p1-prof` can log in. Exam window defaults: 18 Nov 00:00 to 29 Nov 23:00 (`DEMO_START`, `DEMO_END`).
+shows the Demo label and that `pod1-professor` can log in. Exam window defaults: 18 Nov 00:00 to 29 Nov 23:00 (`DEMO_START`, `DEMO_END`).
 
 Reset (a tester changed a passphrase, or the pods are a mess): `sudo lp-demo-reset`. The same credentials work again, because the
 golden snapshot holds the same hashes; the old data is kept in `quarantine`. `demo-setup.sh` refuses to run twice (a rebuild

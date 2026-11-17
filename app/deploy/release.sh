@@ -84,8 +84,13 @@ if [ -e "$DEST" ]; then
   echo "  $TAG is already built (same content), reusing it"
 else
   mkdir "$T/r"
-  if [ -n "$TARBALL" ]; then tar -xzf "$TARBALL" -C "$T/r" --strip-components=1; else gitu archive --format=tar --prefix=r/ "$TAG" | tar -x -C "$T"; fi
+  if [ -n "$TARBALL" ]; then tar -xzf "$TARBALL" -C "$T/r" --strip-components=1 2>/dev/null; else gitu archive --format=tar --prefix=r/ "$TAG" | tar -x -C "$T"; fi
   [ -f "$T/r/server.mjs" ] && [ -f "$T/r/deploy/release.sh" ] || { echo "the archive does not look like LeakProof"; exit 1; }
+  # A release is world-readable: it must never carry keys, databases, data directories or macOS metadata (._*).
+  # Hand-made tarballs (not from make-package.sh) did: v1.0.1 to v1.0.3 shipped data/dev-practice with keys and a database.
+  find "$T/r" -name '._*' -delete
+  if find "$T/r" \( -name '*.key' -o -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' -o -name '*.env' -o -path '*/data/*' -o -name data -type d \) -print | grep -q .; then
+    find "$T/r" \( -name '*.key' -o -name '*.db*' -o -name '*.env' -o -name data -type d \) -print | sed 's/^/  forbidden: /'; echo "the archive carries keys, databases or data: refusing to deploy it"; exit 1; fi
   if [ "$SKIP_TESTS" = 1 ]; then echo "  tests SKIPPED (SKIP_TESTS=1)"; else
     cp -a "$T/r" "$T/t"; chown -R "$U" "$T/t"; echo "  running npm test ..."   # tested in a copy: tests may leave files behind
     (cd "$T/t" && sudo -u "$U" npm test >"$T/test.log" 2>&1) || { tail -40 "$T/test.log"; echo "tests failed, not deploying (SKIP_TESTS=1 to override)"; exit 1; }
@@ -111,7 +116,8 @@ for u in leakproof-firewall.service lp-health@.service lp-health@.timer lp-backu
   install -m 0644 "$DEST/deploy/systemd/$u" "/etc/systemd/system/$u"; done
 if ! cmp -s "$DEST/deploy/systemd/journald-leakproof.conf" /etc/systemd/journald.conf.d/leakproof.conf; then
   install -m 0644 "$DEST/deploy/systemd/journald-leakproof.conf" /etc/systemd/journald.conf.d/leakproof.conf; systemctl restart systemd-journald || true; fi
-for pair in accounts:lp-accounts health:lp-health rollback:lp-rollback backup:lp-backup reset-practice:lp-reset-practice demo-reset:lp-demo-reset firewall:lp-firewall; do
+rm -f /usr/local/sbin/lp-accounts   # its scripts/accounts.mjs was never shipped; the wrapper only failed
+for pair in health:lp-health rollback:lp-rollback backup:lp-backup reset-practice:lp-reset-practice demo-reset:lp-demo-reset firewall:lp-firewall; do
   install -m 0755 -o root -g root "$DEST/deploy/${pair%%:*}.sh" "/usr/local/sbin/${pair##*:}"; done
 systemctl daemon-reload
 if ! cmp -s "$T/Caddyfile" /etc/caddy/Caddyfile; then

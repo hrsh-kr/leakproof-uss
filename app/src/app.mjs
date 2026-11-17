@@ -1,17 +1,21 @@
 // The application: one route table, one middleware chain for every route.
 //   rate limit -> session -> CSRF + origin -> capability (404 if none) -> body schema -> handler
-import { rand, sha256, safeEqual, hashPassword, checkPassword, burnPasswordTime, generatePassphrase } from './crypto.mjs';
+import { rand, sha256, hmac, safeEqual, hashPassword, checkPassword, burnPasswordTime, generatePassphrase } from './crypto.mjs';
 import { tx } from './db.mjs';
 import { makeLog } from './log.mjs';
 import { makeExams, Refusal, MIN_VERIFIED } from './exam.mjs';
 import { BANK, TOPICS } from './bank.mjs';
-import { send, readJson, cookies, HttpError, makeLimiter, SECURITY_HEADERS } from './http.mjs';
+import { send, readJson, cookies, HttpError, makeLimiter, SECURITY_HEADERS, ipKey } from './http.mjs';
+import { passwordProblem, MAX_LEN } from '../public/password-rules.js';
 
 const IDLE = 30 * 60 * 1000, ABSOLUTE = 8 * 60 * 60 * 1000;
 // Checked on the raw string BEFORE lower-casing: U+212A (Kelvin sign) lower-cases to "k" and would alias another account.
 const USERNAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}$/;
 const HIDDEN = /(?![\u200C\u200D])[\p{Cc}\p{Cf}]/u; // joiners stay: Devanagari, Persian and emoji need them
 const HEALTH_CHECK_EVERY = 60_000;
+const SESSIONS_PER_ACCOUNT = 5;                 // the newest five stay; older ones end (a login loop cannot grow the table)
+const DEVICE_TTL = 30 * 24 * 3600_000;          // a browser that logged in to an account is trusted for that account for 30 days
+const ACCOUNT_GUESSES = 20, ACCOUNT_WINDOW = 3600_000; // wrong passwords per account per hour from browsers it has never used
 
 export function createApp({ db, serverKey, logKey, config, now = Date.now, static: serveStatic }) {
   const log = makeLog(db, logKey, now);
@@ -20,13 +24,31 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
   const failures = new Map(); // `${user}|${ip}` -> { n, until }
   const cookieName = config.devHttp ? 'lp_sid' : '__Host-lp_sid';
   const cookieAttrs = `; Path=/; HttpOnly; SameSite=Strict${config.devHttp ? '' : '; Secure'}`;
+  const deviceName = config.devHttp ? 'lp_dev' : '__Host-lp_dev';
 
   // ---------- sessions ----------
   function startSession(accountId) {
     const sid = rand(32).toString('base64url');
     const csrf = rand(24).toString('base64url');
-    db.prepare('INSERT INTO sessions (hash, account_id, csrf, created, seen) VALUES (?,?,?,?,?)').run(sha256(sid).toString('hex'), accountId, csrf, now(), now());
+    tx(db, () => {
+      // Expired sessions are removed, and one account keeps at most SESSIONS_PER_ACCOUNT (the oldest end first).
+      db.prepare('DELETE FROM sessions WHERE seen < ? OR created < ?').run(now() - IDLE, now() - ABSOLUTE);
+      db.prepare('INSERT INTO sessions (hash, account_id, csrf, created, seen) VALUES (?,?,?,?,?)').run(sha256(sid).toString('hex'), accountId, csrf, now(), now());
+      db.prepare('DELETE FROM sessions WHERE account_id = ? AND hash NOT IN (SELECT hash FROM sessions WHERE account_id = ? ORDER BY created DESC, rowid DESC LIMIT ?)')
+        .run(accountId, accountId, SESSIONS_PER_ACCOUNT);
+    });
     return { cookie: `${cookieName}=${sid}${cookieAttrs}`, csrf };
+  }
+  // Device trust (OWASP "device cookies"): after a correct login this browser carries a signed token for that account.
+  // Its wrong guesses are throttled on their own, so nobody else on the same network (campus NAT) can lock the owner out,
+  // and guesses from browsers that never logged in share one small per-account budget.
+  const deviceMac = (accountId, issued) => hmac(serverKey, 'device', accountId, issued).toString('base64url');
+  const deviceCookie = (accountId) => { const at = String(now()); return `${deviceName}=${at}.${deviceMac(accountId, at)}; Max-Age=${DEVICE_TTL / 1000}${cookieAttrs}`; };
+  function trustedDevice(req, accountId) {
+    const v = cookies(req)[deviceName];
+    const m = /^(\d{13})\.([A-Za-z0-9_-]{43})$/.exec(v || '');
+    if (!m || !accountId || now() - Number(m[1]) > DEVICE_TTL || Number(m[1]) > now() + 60_000) return null;
+    return safeEqual(Buffer.from(m[2]), Buffer.from(deviceMac(accountId, m[1]))) ? m[2].slice(0, 16) : null;
   }
   function session(req) {
     const sid = cookies(req)[cookieName];
@@ -43,9 +65,17 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
 
   // ---------- accounts ----------
   // Hashing is slow and asynchronous, so it happens first; the insert itself is synchronous (safe inside a transaction).
-  async function newSecrets() {
-    const passphrase = generatePassphrase(), recovery = generatePassphrase(3);
-    return { passphrase, recovery, pw: await hashPassword(passphrase), rec: await hashPassword(recovery) };
+  // password: the one the person chose (sign-up, change, recovery); omitted only for operator-made accounts (official setup,
+  // demo pods), which get a generated one. The recovery code is always generated: it is a long random backup, kept offline.
+  async function newSecrets(password = null) {
+    const passphrase = password ?? generatePassphrase(), recovery = generatePassphrase(3);
+    return { passphrase: password ? undefined : passphrase, recovery, pw: await hashPassword(passphrase), rec: await hashPassword(recovery) };
+  }
+  // Passwords are compared after Unicode NFC normalisation, so the same visible text typed on any keyboard matches.
+  const pwField = (v) => (typeof v === 'string' && v.length <= MAX_LEN * 4 ? v.normalize('NFC') : null);
+  function mustBeStrong(pw, ctx) {
+    const why = passwordProblem(pw, ctx);
+    if (why) throw new HttpError(400, why, { extra: { field: 'password' } });
   }
   function insertAccount(username, display, secrets, mustChange = false) {
     const accId = rand(16).toString('hex');
@@ -75,10 +105,11 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
   }
 
   // ---------- helpers ----------
+  // The rate-limit identity of a client. IPv6 addresses count per /64: one host is normally given a whole /64.
   const clientIp = (req) => {
     const direct = req.socket.remoteAddress || '';
-    if (config.trustProxy && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(direct) && req.headers['x-real-ip']) return String(req.headers['x-real-ip']).slice(0, 64);
-    return direct;
+    if (config.trustProxy && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(direct) && req.headers['x-real-ip']) return ipKey(String(req.headers['x-real-ip']).slice(0, 64));
+    return ipKey(direct);
   };
   const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : null);
   const int = (v) => (Number.isInteger(v) ? v : (typeof v === 'string' && /^\d{1,6}$/.test(v) ? Number(v) : NaN));
@@ -93,11 +124,24 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
       throw new HttpError(429, `Too many wrong attempts. Try again in ${retry} seconds.`, { retry });
     }
   }
+  // Timing equaliser: run fn(); if it throws synchronously (backoff fast-path), pad the response
+  // to ~200 ms so locked-out existing users are indistinguishable from missing users by wall-clock time.
+  // Uses setTimeout rather than burnPasswordTime to avoid the busy-guard on concurrent requests.
+  const withTiming = async (fn) => {
+    const start = Date.now();
+    try { fn(); } catch (e) {
+      const pad = Math.max(0, 200 - (Date.now() - start));
+      if (pad > 0) await new Promise((r) => setTimeout(r, pad));
+      throw e;
+    }
+  };
   function fail(key) {
     const f = failures.get(key) || { n: 0, until: 0 };
     f.n++;
     if (f.n >= 5) f.until = now() + Math.min(15 * 60_000, 1000 * 2 ** (f.n - 5));
-    if (failures.size > 50_000) failures.clear();
+    // Bounded without ever wiping every lockout at once: the oldest entry goes first (re-inserted keys move to the end).
+    failures.delete(key);
+    while (failures.size >= 50_000) failures.delete(failures.keys().next().value);
     failures.set(key, f);
   }
 
@@ -117,11 +161,13 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
       cardsVerified: cards.filter((c) => c.verified).length, minVerified: MIN_VERIFIED, release: rel || null, open: exams.isOpen(examId),
       setHash: exam.set_hash, serverNow: now(),
     };
+    if (capSet.includes('run')) { out.classCodes = exams.classCodes(examId); out.members = exams.members(examId); }
     if (staff) {
       out.counts = exams.counts(examId);
       out.holders = (cards.length ? cards : db.prepare("SELECT asg.slot, NULL verified, a.display FROM assignments asg JOIN accounts a ON a.id = asg.account_id WHERE asg.exam_id = ? AND asg.cap = 'hold' ORDER BY asg.slot").all(examId))
         .map((c) => ({ slot: c.slot, display: c.display, verified: !!c.verified }));
       out.printed = db.prepare('SELECT seat, fetches FROM copies WHERE exam_id = ? ORDER BY seat').all(examId);
+      out.onlineSeats = db.prepare('SELECT seat FROM student_seats WHERE exam_id = ? ORDER BY seat').all(examId).map((r) => r.seat);
     }
     return out;
   }
@@ -168,72 +214,97 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
       return h.ok ? { ok: true, instance: config.instance, mode: config.mode } : { status: 503, body: { ok: false, reason: h.reason } };
     }),
     R('POST', '/api/login', { auth: 'none', bucket: 'auth' }, async ({ body, req }) => {
-      const username = userName(body.username), password = str(body.password, 200);
-      if (!str(body.username, 64)?.trim() || !password) throw new HttpError(400, 'Enter your username and passphrase.');
-      const key = `${username ?? '?'}|${clientIp(req)}`;
-      backoff(key);
+      const username = userName(body.username), password = pwField(body.password);
+      if (!str(body.username, 64)?.trim() || !password) throw new HttpError(400, 'Enter your username and password.');
       const acc = username && db.prepare('SELECT * FROM accounts WHERE username = ?').get(username);
+      // A browser this account logged in from before is throttled on its own (key: its token), so wrong guesses typed by
+      // someone else on the same network never lock the owner out. Other browsers: per name+network back-off, plus one
+      // per-account budget shared by every network (a botnet guessing a chosen password gets ACCOUNT_GUESSES per hour).
+      const device = acc && trustedDevice(req, acc.id);
+      const key = device ? `dev|${acc.id}|${device}` : `${username ?? '?'}|${clientIp(req)}`;
+      const budget = `acct|${username ?? '?'}`;
+      await withTiming(() => backoff(key));
+      if (!device) {
+        const b = limit.peek(budget);
+        if (b.n >= ACCOUNT_GUESSES) {
+          await burnPasswordTime('');
+          throw new HttpError(429, `This account had too many wrong passwords from new devices. Try again in ${Math.ceil(b.retry / 60)} min, log in from a browser you used before, or use "Forgot your password?" with your recovery code.`, { retry: b.retry });
+        }
+      }
       const ok = acc && !acc.simulated ? await checkPassword(password, acc.pw) : await burnPasswordTime(password);
-      if (!ok) { fail(key); throw new HttpError(401, 'Username or passphrase is wrong.'); }
+      if (!ok) { fail(key); if (!device) limit(budget, ACCOUNT_GUESSES, ACCOUNT_WINDOW); throw new HttpError(401, 'Username or password is wrong.'); }
       failures.delete(key);
       const old = session(req);
       if (old) db.prepare('DELETE FROM sessions WHERE hash = ?').run(old.hash); // a new login never reuses an old session
       const s = startSession(acc.id);
-      return { status: 200, body: { csrf: s.csrf, display: acc.display }, headers: { 'Set-Cookie': s.cookie } };
+      return { status: 200, body: { csrf: s.csrf, display: acc.display }, headers: { 'Set-Cookie': [s.cookie, deviceCookie(acc.id)] } };
     }),
     R('POST', '/api/logout', { auth: 'session', beforeChange: true }, ({ sess }) => {
       db.prepare('DELETE FROM sessions WHERE hash = ?').run(sess.hash);
       return { status: 200, body: { ok: true }, headers: { 'Set-Cookie': clearCookie } };
     }),
+    // Sign-up (practice only). A professor gets a fresh practice exam. A TA or student must give the class code of the
+    // exam they join: the role's course code alone is public, so it never places anyone in somebody else's exam.
+    // The person chooses the password (checked against public/password-rules.js). No session is started here: the browser
+    // shows the generated recovery code once, and only after the user confirms they saved it does it log in with the chosen
+    // password. Pressing Back on the recovery-code page therefore never lands anyone logged in.
     R('POST', '/api/register', { auth: 'none', bucket: 'auth', practiceOnly: true }, async ({ body, req }) => {
       const invite = str(body.invite, 64) ?? '', username = userName(body.username), display = str(body.display, 60)?.trim();
-      let role = str(body.role, 20)?.toLowerCase();
-      // Backward compat: old invite code (USS-PRACTICE) with no role → professor (supports scripts and tests).
-      if (!role && safeEqual(sha256(invite.trim().toUpperCase()), sha256(config.inviteCode.toUpperCase()))) role = 'professor';
-      if (!['professor', 'ta', 'student'].includes(role)) throw new HttpError(400, 'Choose your role: professor, ta, or student.');
+      const role = str(body.role, 20)?.toLowerCase();
+      if (!['professor', 'ta', 'student'].includes(role)) throw new HttpError(400, 'Choose your role: professor, TA or student.');
       const codeByRole = { professor: config.inviteCodeProf, ta: config.inviteCodeTa, student: config.inviteCodeStudent };
-      const validCode = safeEqual(sha256(invite.trim().toUpperCase()), sha256(codeByRole[role].toUpperCase()))
-        || (role === 'professor' && safeEqual(sha256(invite.trim().toUpperCase()), sha256(config.inviteCode.toUpperCase())));
-      if (!validCode) throw new HttpError(403, 'That course code is not right for this role. Check the user guide.');
+      if (!safeEqual(sha256(invite.trim().toUpperCase()), sha256(codeByRole[role].toUpperCase()))) {
+        throw new HttpError(403, 'That course code is not right for this role. Check the user guide.');
+      }
+      let joinExam = null;
+      if (role !== 'professor') {
+        joinExam = exams.findByClassCode(role, str(body.classCode, 64));
+        if (!joinExam) throw new HttpError(403, 'That class code is not right. Ask your professor for the class code for your role.');
+        const open = role === 'ta' ? joinExam.stage === 'COLLECTING' : joinExam.stage !== 'RELEASED';
+        if (!open) throw new HttpError(409, role === 'ta' ? 'This exam is sealed, so TAs can no longer join it.' : 'This exam has already been released, so students can no longer join it.');
+      }
       if (!username || !USERNAME.test(username) || username.startsWith('sim-')) throw new HttpError(400, 'Username: 3 to 32 characters, lowercase letters, digits, dot, dash or underscore.');
       if (!display || display.length < 2) throw new HttpError(400, 'Enter a display name (2 to 60 characters).');
       if (HIDDEN.test(display)) throw new HttpError(400, 'The display name has an invisible or control character. Type plain text.');
+      const password = pwField(body.password);
+      if (!password) throw new HttpError(400, 'Choose a password.', { extra: { field: 'password' } });
+      mustBeStrong(password, { username, display });
       const daily = `register|${clientIp(req)}`, seen = limit.peek(daily);
       if (seen.n >= config.registerPerIp) throw new HttpError(429, `This network has created ${config.registerPerIp} practice accounts today. Try again later.`, { retry: seen.retry });
       const total = db.prepare('SELECT COUNT(*) n FROM accounts WHERE simulated = 0').get().n;
       if (total >= config.maxAccounts) throw new HttpError(503, 'Practice is full. Tell the team so they can raise the limit.');
       if (db.prepare('SELECT 1 FROM accounts WHERE username = ?').get(username)) throw new HttpError(409, 'That username is taken. Choose another.');
-      const secrets = await newSecrets();
-      // Checked again: another request may have taken the name while this one was hashing.
+      const secrets = await newSecrets(password);
+      // Checked again: another request may have taken the name (or sealed the exam) while this one was hashing.
       if (db.prepare('SELECT 1 FROM accounts WHERE username = ?').get(username)) throw new HttpError(409, 'That username is taken. Choose another.');
       const { acc, examId } = tx(db, () => {
-        const acc = insertAccount(username, display, secrets);
         let examId;
-        if (role === 'professor') {
-          examId = seedPracticeExam(acc.id);
-        } else {
-          const latest = db.prepare("SELECT id FROM exams WHERE stage = 'COLLECTING' AND practice = 1 ORDER BY created DESC LIMIT 1").get();
-          if (!latest) throw new HttpError(503, 'No class is open for registration yet. Ask your professor to set up the exam first.');
-          examId = latest.id;
-          exams.assign(acc.id, examId, role === 'ta' ? 'submit' : 'attempt');
+        if (role !== 'professor') {
+          const stage = exams.getExam(joinExam.id).stage;
+          if (role === 'ta' ? stage !== 'COLLECTING' : stage === 'RELEASED') throw new HttpError(409, 'This exam moved on while you were signing up. Ask your professor.');
         }
+        const acc = insertAccount(username, display, secrets);
+        if (role === 'professor') examId = seedPracticeExam(acc.id);
+        else { examId = joinExam.id; exams.assign(acc.id, examId, role === 'ta' ? 'submit' : 'attempt'); }
         return { acc, examId };
       });
       limit(daily, config.registerPerIp, 24 * 3600_000); // only successful sign-ups count, so a shared network is not locked out by typos
-      log.append(examId, acc.id, 'account.registered');
-      const s = startSession(acc.id);
-      return { status: 201, body: { csrf: s.csrf, passphrase: acc.passphrase, recovery: acc.recovery, examId, role }, headers: { 'Set-Cookie': s.cookie } };
+      log.append(examId, acc.id, 'account.registered', {});
+      return { status: 201, body: { username, recovery: acc.recovery, examId, role } };
     }),
     R('POST', '/api/recover', { auth: 'none', bucket: 'auth' }, async ({ body, req }) => {
-      const username = userName(body.username), code = str(body.recovery, 64)?.trim().toLowerCase();
+      const username = userName(body.username), code = str(body.recovery, 64)?.trim().toLowerCase(), next = pwField(body.next);
       if (!str(body.username, 64)?.trim() || !code) throw new HttpError(400, 'Enter your username and recovery code.');
+      if (!next) throw new HttpError(400, 'Choose a new password.', { extra: { field: 'password' } });
+      mustBeStrong(next, { username: username ?? '' }); // before the code is tried: a weak choice never costs an attempt
       const key = `recover|${username ?? '?'}|${clientIp(req)}`;
-      backoff(key);
+      await withTiming(() => backoff(key));
       const acc = username && db.prepare('SELECT * FROM accounts WHERE username = ?').get(username);
       const ok = acc && acc.recovery ? await checkPassword(code, acc.recovery) : await burnPasswordTime(code);
       if (!ok) { fail(key); throw new HttpError(401, 'Username or recovery code is wrong.'); }
       failures.delete(key);
-      const fresh = await newSecrets(), pass = fresh.passphrase, recovery = fresh.recovery;
+      mustBeStrong(next, { username, display: acc.display });
+      const fresh = await newSecrets(next), recovery = fresh.recovery;
       // The update only applies if the code is still the one we checked: two racing requests cannot both use it.
       const used = tx(db, () => {
         const r = db.prepare('UPDATE accounts SET pw = ?, recovery = ?, must_change = 0 WHERE id = ? AND recovery = ?').run(fresh.pw, fresh.rec, acc.id, acc.recovery);
@@ -241,25 +312,36 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
         return r.changes === 1;
       });
       if (!used) throw new HttpError(401, 'Username or recovery code is wrong.');
-      return { status: 200, body: { passphrase: pass, recovery } };
+      log.append(null, acc.id, 'account.recovered', {}); // audit trail (no exam, so never on a public page)
+      // The recovery code proves ownership, so this browser becomes trusted for the account and the shared guess budget is
+      // cleared: an attacker who keeps spending that budget can never keep the owner out (for example on a new exam-hall PC).
+      limit.reset(`acct|${username}`); failures.delete(`${username}|${clientIp(req)}`);
+      return { status: 200, body: { recovery }, headers: { 'Set-Cookie': deviceCookie(acc.id) } };
     }),
-    R('POST', '/api/passphrase', { auth: 'session', bucket: 'sensitive', beforeChange: true }, async ({ body, req, sess }) => {
-      const current = str(body.current, 200);
-      if (!current) throw new HttpError(400, 'Enter your current passphrase.');
+    // Change password: the current one, then the new one the person chose. The recovery code stays the same (so an
+    // attacker who changes a stolen password cannot also take away the owner's way back), except on an operator-made
+    // account's first login (must_change): the operator saw that code too, so a fresh one is issued and shown once.
+    R('POST', '/api/password', { auth: 'session', bucket: 'sensitive', beforeChange: true }, async ({ body, req, sess }) => {
+      const current = pwField(body.current), next = pwField(body.next);
+      if (!current) throw new HttpError(400, 'Enter your current password.');
+      if (!next) throw new HttpError(400, 'Choose a new password.', { extra: { field: 'password' } });
+      mustBeStrong(next, { username: sess.username, display: sess.display });
+      if (next === current) throw new HttpError(400, 'Password not accepted: the new password must be different from the current one.', { extra: { field: 'password' } });
       const key = `pass|${sess.account_id}|${clientIp(req)}`;
-      backoff(key);
-      const acc = db.prepare('SELECT pw, must_change FROM accounts WHERE id = ?').get(sess.account_id);
-      if (!(await checkPassword(current, acc.pw))) { fail(key); throw new HttpError(401, 'Your current passphrase is wrong.'); }
+      await withTiming(() => backoff(key));
+      const acc = db.prepare('SELECT pw, recovery, must_change FROM accounts WHERE id = ?').get(sess.account_id);
+      if (!(await checkPassword(current, acc.pw))) { fail(key); throw new HttpError(401, 'Your current password is wrong.'); }
       failures.delete(key);
-      const fresh = await newSecrets();
+      const fresh = await newSecrets(next);
+      const rec = acc.must_change ? fresh.rec : acc.recovery;
       const done = tx(db, () => {
-        const r = db.prepare('UPDATE accounts SET pw = ?, recovery = ?, must_change = 0 WHERE id = ? AND pw = ?').run(fresh.pw, fresh.rec, sess.account_id, acc.pw);
+        const r = db.prepare('UPDATE accounts SET pw = ?, recovery = ?, must_change = 0 WHERE id = ? AND pw = ?').run(fresh.pw, rec, sess.account_id, acc.pw);
         if (r.changes === 1) db.prepare('DELETE FROM sessions WHERE account_id = ? AND hash != ?').run(sess.account_id, sess.hash);
         return r.changes === 1;
       });
-      if (!done) throw new HttpError(409, 'Your passphrase was changed by another request. Log in again.');
-      log.append(null, sess.account_id, acc.must_change ? 'account.activated' : 'account.passphrase_changed', {});
-      return { passphrase: fresh.passphrase, recovery: fresh.recovery };
+      if (!done) throw new HttpError(409, 'Your password was changed by another request. Log in again.');
+      log.append(null, sess.account_id, acc.must_change ? 'account.activated' : 'account.password_changed', {});
+      return acc.must_change ? { ok: true, recovery: fresh.recovery } : { ok: true };
     }),
     R('GET', '/api/me', { auth: 'session', beforeChange: true }, ({ sess }) => ({
       username: sess.username, display: sess.display, csrf: sess.csrf, instance: config.mode, name: config.instance, mustChange: !!sess.must_change,
@@ -271,11 +353,12 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
       const options = Array.isArray(body.options) ? body.options.slice(0, 5) : body.options;
       return { status: 201, body: { id: exams.submit(params.id, sess.account_id, { topic: int(body.topic), text: body.text, options, correct: int(body.correct) }) } };
     }),
-    R('GET', '/api/exams/:id/questions', { auth: 'session', cap: 'submit|attempt' }, ({ sess, params }) => {
-      if (exams.has(sess.account_id, params.id, 'attempt'))
-        return { questions: exams.allQuestions(params.id) };
-      return { questions: exams.myQuestions(params.id, sess.account_id) };
-    }),
+    R('GET', '/api/exams/:id/questions', { auth: 'session', cap: 'submit' }, ({ sess, params }) => ({ questions: exams.myQuestions(params.id, sess.account_id) })),
+    R('GET', '/api/exams/:id/my-copy', { auth: 'session', cap: 'attempt' }, ({ sess, params }) => exams.studentCopy(params.id, sess.account_id)),
+    // Remove a TA or student who should not be in the exam (for example one who joined with a leaked class code).
+    R('POST', '/api/exams/:id/members/:aid/remove', { auth: 'session', cap: 'run', bucket: 'sensitive' }, ({ sess, params }) =>
+      exams.removeMember(params.id, sess.account_id, params.aid)),
+    R('POST', '/api/exams/:id/class-codes', { auth: 'session', cap: 'run', bucket: 'sensitive' }, ({ sess, params }) => exams.rotateCodes(params.id, sess.account_id)),
     R('DELETE', '/api/exams/:id/questions/:qid', { auth: 'session', cap: 'submit' }, ({ sess, params }) => {
       exams.deleteQuestion(params.id, sess.account_id, params.qid); return { ok: true };
     }),
@@ -300,10 +383,13 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
       const examId = tx(db, () => seedPracticeExam(sess.account_id));
       return { status: 201, body: { examId } };
     }),
-    R('GET', '/api/public/log/:id', { auth: 'none' }, ({ params }) => {
+    // Paged: ?before=<seq> returns the 200 entries before that one, so no entry can be pushed out of public view.
+    R('GET', '/api/public/log/:id', { auth: 'none', bucket: 'public' }, ({ params, url }) => {
       if (!/^[0-9a-f]{32}$/.test(params.id) || !exams.getExam(params.id)) notFound();
+      const b = url.searchParams.get('before');
+      if (b !== null && !/^\d{1,12}$/.test(b)) throw new HttpError(400, 'before must be an entry number.');
       return { chain: log.status(), head: log.head(), total: log.countFor(params.id),
-        entries: log.recent(params.id, 200).map((e) => ({ seq: e.seq, at: e.at, action: e.action, detail: JSON.parse(e.detail), hash: e.hash })),
+        entries: log.recent(params.id, 200, b === null ? null : Number(b)).map((e) => ({ seq: e.seq, at: e.at, action: e.action, detail: JSON.parse(e.detail), hash: e.hash })),
         draw: exams.seedReveal(params.id) };
     }),
     R('POST', '/api/public/check-head', { auth: 'none', bucket: 'public' }, ({ body }) => {
@@ -326,7 +412,9 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
       if (!url.pathname.startsWith('/api/') && url.pathname !== '/healthz') {
         const f = (req.method === 'GET' || req.method === 'HEAD') && serveStatic?.(url.pathname);
         if (!f) throw new HttpError(404, 'Not found');
-        res.writeHead(200, { 'Content-Type': f.type, 'Cache-Control': 'no-cache', 'Content-Length': f.body.length });
+        // no-store: browsers then keep no copy of the app on disk and do not restore it from the back/forward cache
+        // after a logout (an old page with a paper or a key card on it cannot come back with the Back button).
+        res.writeHead(200, { 'Content-Type': f.type, 'Cache-Control': 'no-store', 'Content-Length': f.body.length });
         return res.end(req.method === 'HEAD' ? undefined : f.body);
       }
       const ip = clientIp(req);
@@ -353,7 +441,7 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
           if (!safeEqual(Buffer.from(t), Buffer.from(sess.csrf))) throw new HttpError(403, 'Your session expired on this page. Reload and try again.');
         }
       }
-      if (sess?.must_change && !route.beforeChange) throw new HttpError(403, 'Set your own passphrase first.', { extra: { mustChange: true } });
+      if (sess?.must_change && !route.beforeChange) throw new HttpError(403, 'Set your own password first.', { extra: { mustChange: true } });
       let examId = null;
       if (route.cap) {
         examId = route.examFrom === 'rid' ? examFromRelease(params.rid) : params.id;
@@ -363,7 +451,7 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
         if (!ok) notFound(); // no capability looks exactly like no such exam
       }
       const body = await readJson(req);
-      const out = await route.handler({ req, sess, params, body, examId });
+      const out = await route.handler({ req, sess, params, body, examId, url });
       const r = out && out.status ? out : { status: 200, body: out };
       return send(res, r.status, r.body, r.headers);
     } catch (e) {
@@ -371,6 +459,8 @@ export function createApp({ db, serverKey, logKey, config, now = Date.now, stati
         const headers = { ...(e.status === 429 ? { 'Retry-After': String(e.retry || 60) } : {}), ...(e.close ? { Connection: 'close' } : {}) };
         return send(res, e.status, { error: e.message, ...(e.extra || {}) }, headers);
       }
+      // Too many password checks at once (a flood): refuse quickly instead of queueing every login behind it.
+      if (e?.busy) return send(res, 503, { error: 'LeakProof is busy checking passwords. Try again in a few seconds.' }, { 'Retry-After': '5' });
       ref = rand(4).toString('hex');
       console.error(`[error ${ref}] ${req.method} ${url ? url.pathname : '?'}: ${e && e.message}`);
       return send(res, 500, { error: `Something went wrong. Quote reference ${ref} if you report it.` });

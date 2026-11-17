@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import { execFileSync } from 'node:child_process';
-import { boot, practiceUser, sealAndVerify, releaseOpen } from './helpers.mjs';
+import { boot, practiceUser, sealAndVerify, releaseOpen, joinAs, PW, NEWPW } from './helpers.mjs';
 import { start } from '../server.mjs';
 import { loadConfig, loadKey } from '../src/config.mjs';
 import { openDb } from '../src/db.mjs';
@@ -119,7 +119,7 @@ test('S6 after seal and verify, no stored question ciphertext or wrapped share i
   try {
     const { c, examId } = await practiceUser(b);
     const tac = b.client();
-    const taReg = await tac.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: 'ta-s6-' + (Date.now() % 9999), display: 'TA S6' });
+    const taReg = await joinAs(tac, 'ta', c, examId, 'ta-s6-' + (Date.now() % 9999), 'TA S6');
     assert.equal(taReg.status, 201);
     await tac.post(`/api/exams/${examId}/questions`, { topic: 2, text: 'Which planet is the canary on?', options: ['a1', 'b1', 'c1', 'd1'], correct: 0 });
     const cts = b.db.prepare('SELECT ct FROM questions WHERE exam_id = ?').all(examId).map((r) => Buffer.from(r.ct));
@@ -157,7 +157,7 @@ test('S7 the exam cell gets a per-seat answer key while the paper is open; it ma
 test('S8 shared networks: only successful sign-ups count, and check-head has its own bucket', async () => {
   const b = await boot({ LP_REGISTER_PER_IP: '2', LP_AUTH_PER_MIN: '3' });
   try {
-    const reg = (u, inv = 'USS-PRACTICE') => b.client().post('/api/register', { invite: inv, role: 'professor', username: u, display: 'Xy' });
+    const reg = (u, inv = 'LP-PROF-G19') => b.client().post('/api/register', { password: PW, invite: inv, role: 'professor', username: u, display: 'Xy' });
     assert.equal((await reg('first1')).status, 201);
     assert.equal((await reg('first1')).status, 409, 'taken name: does not count');
     assert.equal((await reg('second2')).status, 201);
@@ -200,19 +200,20 @@ test('S11 accounts made by the operator must set their own passphrase; the chang
     const c = await login(acc.passphrase), other = await login(acc.passphrase);
     assert.equal((await c.get('/api/me')).data.mustChange, true);
     const blocked = await c.get(`/api/exams/${id}`);
-    assert.deepEqual([blocked.status, blocked.data.mustChange, blocked.data.error], [403, true, 'Set your own passphrase first.']);
-    assert.equal((await c.post('/api/passphrase', { current: 'wrong-wrong' })).status, 401);
-    const ch = await c.post('/api/passphrase', { current: acc.passphrase });
+    assert.deepEqual([blocked.status, blocked.data.mustChange, blocked.data.error], [403, true, 'Set your own password first.']);
+    assert.equal((await c.post('/api/password', { current: 'wrong-wrong', next: PW })).status, 401);
+    assert.equal((await c.post('/api/password', { current: acc.passphrase, next: 'password1234' })).status, 400, 'a weak choice is refused');
+    const ch = await c.post('/api/password', { current: acc.passphrase, next: PW });
     assert.equal(ch.status, 200);
-    assert.match(ch.data.passphrase, /^[a-z2-9]{4}(-[a-z2-9]{4}){3}$/); assert.ok(ch.data.recovery);
+    assert.equal(ch.data.passphrase, undefined, 'the server never sends a password back'); assert.ok(ch.data.recovery, 'operator-made account: fresh recovery code');
     assert.equal((await c.get('/api/me')).data.mustChange, false, 'the current session stays');
     assert.equal((await c.get(`/api/exams/${id}`)).status, 200);
     assert.equal((await other.get('/api/me')).status, 401, 'other sessions ended');
     assert.equal((await b.client().post('/api/login', { username: 'holder1', password: acc.passphrase })).status, 401, 'operator copy is dead');
-    assert.equal((await b.client().post('/api/recover', { username: 'holder1', recovery: acc.recovery })).status, 401, 'operator recovery code is dead');
-    await login(ch.data.passphrase);
-    for (let i = 0; i < 5; i++) await c.post('/api/passphrase', { current: 'wrong-wrong' });
-    assert.equal((await c.post('/api/passphrase', { current: ch.data.passphrase })).status, 429, 'backoff like login');
+    assert.equal((await b.client().post('/api/recover', { next: NEWPW, username: 'holder1', recovery: acc.recovery })).status, 401, 'operator recovery code is dead');
+    await login(PW);
+    for (let i = 0; i < 5; i++) await c.post('/api/password', { current: 'wrong-wrong', next: NEWPW });
+    assert.equal((await c.post('/api/password', { current: PW, next: NEWPW })).status, 429, 'backoff like login');
   } finally { await b.stop(); }
 });
 
@@ -245,7 +246,7 @@ test('S11 official-setup marks every account must_change; practice sign-up does 
 
 test('S12 background polls (X-LP-Background: 1) do not refresh the idle timer', async () => {
   const { c } = await practiceUser(t);
-  const h = sha256(c.cookie.split('=')[1]).toString('hex');
+  const h = sha256(c.jar.get('lp_sid')).toString('hex');
   const before = Date.now() - 20 * 60_000;
   t.db.prepare('UPDATE sessions SET seen = ? WHERE hash = ?').run(before, h);
   assert.equal((await c.get('/api/me', { 'x-lp-background': '1' })).status, 200);
@@ -322,7 +323,7 @@ test('S16 Retry-After is the real wait; chunked bodies over 16 KB get 413; HEAD 
 test('S16 recovery codes are single-use even when two requests race', async () => {
   const u = await practiceUser(t);
   const name = (await u.c.get('/api/me')).data.username;
-  const rs = await Promise.all([0, 1].map(() => t.client().post('/api/recover', { username: name, recovery: u.recovery })));
+  const rs = await Promise.all([0, 1].map(() => t.client().post('/api/recover', { next: NEWPW, username: name, recovery: u.recovery })));
   assert.deepEqual(rs.map((r) => r.status).sort(), [200, 401]);
 });
 
@@ -348,7 +349,7 @@ test('S1 unexpected errors return a reference code only (no stack, no path)', as
 
 test('SR2 sessions: the absolute 8 h limit holds and only a hash of the session id is stored', async () => {
   const { c } = await practiceUser(t);
-  const sid = c.cookie.split('=')[1];
+  const sid = c.jar.get('lp_sid');
   assert.equal(t.db.prepare('SELECT COUNT(*) n FROM sessions WHERE hash = ?').get(sha256(sid).toString('hex')).n, 1, 'stored as sha256');
   assert.ok(!JSON.stringify(t.db.prepare('SELECT * FROM sessions').all()).includes(sid));
   t.db.prepare('UPDATE sessions SET created = ? WHERE hash = ?').run(Date.now() - 8 * 3600_000 - 1000, sha256(sid).toString('hex'));

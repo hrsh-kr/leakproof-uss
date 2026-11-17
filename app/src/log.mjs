@@ -41,7 +41,8 @@ export function makeLog(db, key, now = Date.now) {
   }
   const head = () => last.get()?.hash ?? GENESIS;
   const contains = (h) => !!db.prepare('SELECT 1 FROM log WHERE hash = ?').get(h);
-  const recent = (examId, n) => db.prepare('SELECT * FROM (SELECT seq, at, action, detail, hash FROM log WHERE exam_id = ? ORDER BY seq DESC LIMIT ?) ORDER BY seq').all(examId, n);
+  const recent = (examId, n, before = null) => db.prepare('SELECT * FROM (SELECT seq, at, action, detail, hash FROM log WHERE exam_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?) ORDER BY seq')
+    .all(examId, before ?? Number.MAX_SAFE_INTEGER, n);
   const countFor = (examId) => db.prepare('SELECT COUNT(*) n FROM log WHERE exam_id = ?').get(examId).n;
   const has = (examId, action, detail) => !!db.prepare('SELECT 1 FROM log WHERE exam_id = ? AND action = ? AND detail = ?').get(examId, action, JSON.stringify(detail));
   return { append, verify, status, head, contains, recent, countFor, has };

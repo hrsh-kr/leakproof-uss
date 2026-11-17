@@ -71,6 +71,19 @@ export function staticFiles(dir) {
   return (pathname) => files.get(pathname === '/' ? '/index.html' : pathname);
 }
 
+// Rate-limit identity of an address. IPv4 (also written ::ffff:a.b.c.d) as is; IPv6 by its /64 prefix, because one host
+// or one home router normally owns a whole /64 and could otherwise use a fresh address for every request.
+export function ipKey(addr) {
+  const a = String(addr || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const v4 = /^(?:::ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/.exec(a);
+  if (v4) return v4[1];
+  if (!a.includes(':') || !/^[0-9a-f:.]+$/.test(a)) return a.slice(0, 64);
+  const [head, tail = null] = a.split('::');
+  const h = head ? head.split(':') : [], t = tail ? tail.split(':') : [];
+  const groups = tail === null ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+  return groups.slice(0, 4).map((g) => (parseInt(g, 16) || 0).toString(16)).join(':') + '::/64';
+}
+
 // Fixed-window counters, in memory, with a hard cap on keys so the limiter itself cannot exhaust memory.
 export function makeLimiter(maxKeys = 50_000) {
   const m = new Map();
@@ -84,6 +97,7 @@ export function makeLimiter(maxKeys = 50_000) {
     return { ok: e.n <= limit, retry: Math.ceil((e.reset - now) / 1000) };
   }
   // Read a counter without adding to it (sign-ups count only when they succeed).
+  hit.reset = (key) => { m.delete(key); };
   hit.peek = (key, now = Date.now()) => { const e = m.get(key); return e && now < e.reset ? { n: e.n, retry: Math.ceil((e.reset - now) / 1000) } : { n: 0, retry: 0 }; };
   return hit;
 }

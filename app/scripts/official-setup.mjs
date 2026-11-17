@@ -22,8 +22,10 @@ if (config.mode !== 'official') { console.error('Run with LP_MODE=official (or L
 
 const db = openDb(config.dataDir);
 const app = createApp({ db, config, serverKey: loadKey(config.keyDir, 'server.key', db), logKey: loadKey(config.keyDir, 'log.key', db) });
-const holders = cfg.people.filter((p) => p.caps.includes('hold'));
-if (holders.length !== 5) throw new Error('exactly five people must hold a key card');
+// Roles: professor = run + print + hold (the one key card); TA = submit; student = attempt. Nothing else is accepted.
+const ROLES = { 'attempt': 'student', 'submit': 'TA', 'hold,print,run': 'professor' };
+for (const p of cfg.people) if (!ROLES[[...p.caps].sort().join(',')]) { console.error(`${p.username}: caps ${JSON.stringify(p.caps)} are not a role. Use ["run","print","hold"] (professor), ["submit"] (TA) or ["attempt"] (student).`); process.exit(2); }
+if (cfg.people.filter((p) => p.caps.includes('hold')).length !== 1) { console.error('exactly one professor (who holds the key card) is needed'); process.exit(2); }
 
 const made = [];
 for (const p of cfg.people) made.push({ p, acc: await app.createAccount(p.username, p.display, { mustChange: !demo }) });
@@ -34,7 +36,7 @@ const examId = tx(db, () => {
   return id;
 });
 console.log(`Official exam ${examId} created: ${cfg.title}`);
-const role = (p) => `${p.display} (${p.caps.join(', ')})`;
+const role = (p) => ROLES[[...p.caps].sort().join(',')].replace(/^./, (c) => c.toUpperCase());
 if (out) {
   const cell = (v) => String(v).replace(/\|/g, '\\|');
   const rows = made.map(({ p, acc }) => `| ${cell(role(p))} | ${cell(p.username)} | ${acc.passphrase} | ${acc.recovery} |`);

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { boot, practiceUser, sealAndVerify, releaseOpen } from './helpers.mjs';
+import { boot, practiceUser, sealAndVerify, releaseOpen, joinAs } from './helpers.mjs';
 import { draw } from '../src/exam.mjs';
 
 const CANARY = 'CANARY-7f3a91 which planet is the canary on?';
@@ -45,8 +45,8 @@ test('SR3 TAs read only their own questions; the professor sees counts only', as
   const prof = await practiceUser(t);
   // Register two TAs on prof's exam.
   const ta1 = t.client(), ta2 = t.client();
-  const r1 = await ta1.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: `ta1-${Date.now() % 9999}`, display: 'TA One' });
-  const r2 = await ta2.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: `ta2-${Date.now() % 9999}`, display: 'TA Two' });
+  const r1 = await joinAs(ta1, 'ta', prof.c, prof.examId, `ta1-${Date.now() % 9999}`, 'TA One');
+  const r2 = await joinAs(ta2, 'ta', prof.c, prof.examId, `ta2-${Date.now() % 9999}`, 'TA Two');
   assert.equal(r1.status, 201); assert.equal(r2.status, 201);
   assert.equal(r1.data.examId, prof.examId, 'TA joins prof exam');
   await ta1.post(`/api/exams/${r1.data.examId}/questions`, { topic: 1, text: 'TA A private question?', options: ['1', '2', '3', '4'], correct: 0 });

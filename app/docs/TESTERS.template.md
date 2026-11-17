@@ -37,11 +37,11 @@ To check it, run `openssl x509 -in leakproof-root-ca.crt -noout -fingerprint -sh
 
 How to read it:
 
-- A username starts with `p1-`, `p2-` or `p3-` (the pod). A pod has 1 professor (`-prof`), 2 TAs (`-ta-a`, `-ta-b`) and 2 students (`-stu-a`, `-stu-b`).
-- The passphrase logs you in. The recovery code sets a new passphrase if the passphrase is lost.
-- The accounts are shared on the honour system. One group per pod. Do not change a passphrase on a demo account. If a pod is broken or a passphrase was changed, we can restore it.
+- A username starts with `pod1-`, `pod2-` or `pod3-` (the pod). A pod has 1 professor (`-professor`), 2 TAs (`-ta-1`, `-ta-2`) and 2 students (`-student-1`, `-student-2`).
+- The password logs you in. The recovery code lets you choose a new password if the password is lost. (On the practice instance you choose your own password at sign-up; demo passwords are generated because the accounts are shared.)
+- The accounts are shared on the honour system. One group per pod. Do not change the password of a demo account. If a pod is broken or a password was changed, we can restore it.
 - Every night at 04:00 server time the pods go back to their starting state with the same passphrases. Sessions end, open papers lock again, and saved card files stop working.
-- Demo accounts do not ask for a new passphrase at first log-in. The official instance does, and it is not part of this test.
+- Demo accounts do not ask for a new password at first log-in. The official instance does, and it is not part of this test.
 
 ## Roles per demo pod
 
@@ -87,7 +87,7 @@ Full list: section 12 of `USER_GUIDE.md` and `SECURITY.md` section 4.
 - The professor holds the single key card and can open the paper; the log shows it. The professor's card plus a copy of the database can open it offline without a log entry.
 - The professor can veto a release (which needs the two words); the exam cell requests again.
 - The operator picks the draw seed. The seal log entry commits to the seed's hash, so it cannot change later.
-- A trace names a seat, not a person, and may match several seats unless the options are pasted.
+- A trace names a seat (and, for a seat held online, its student), and may match several seats unless the options are pasted.
 - The two-word check has 14 bits, with 5 tries per holder per request, all logged.
 - Practice mode lets one account play every role.
 - A restart re-locks the paper. This is by design.

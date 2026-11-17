@@ -7,7 +7,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { boot, practiceUser, sealAndVerify, releaseOpen } from './helpers.mjs';
+import { boot, practiceUser, sealAndVerify, releaseOpen, PW, NEWPW } from './helpers.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const raw = (port, text, waitMs = 600) => new Promise((resolve) => {
@@ -19,7 +19,7 @@ const raw = (port, text, waitMs = 600) => new Promise((resolve) => {
 test('Y1 [SR2] usernames: ASCII only, 3 to 32 characters; the Kelvin sign (U+212A, lower-cases to "k") cannot alias another account (N1 N2)', async () => {
   const t = await boot();
   try {
-    const reg = (username) => t.client().post('/api/register', { invite: 'USS-PRACTICE', username, display: 'Tester' });
+    const reg = (username) => t.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username, display: 'Tester' });
     assert.equal((await reg('a'.repeat(32))).status, 201, '32 characters allowed');
     assert.equal((await reg('b'.repeat(33))).status, 400, '33 characters refused');
     assert.equal((await reg('ab')).status, 400, '2 characters refused');
@@ -38,11 +38,11 @@ test('Y2 [SR2] empty or blank names are a 400 on login and recover (not a silent
     const anon = t.client();
     assert.equal((await anon.post('/api/login', { username: '   ', password: 'x' })).status, 400);
     assert.equal((await anon.post('/api/login', { password: 'x' })).status, 400);
-    assert.equal((await anon.post('/api/recover', { username: '   ', recovery: 'x' })).status, 400);
-    assert.equal((await anon.post('/api/recover', { recovery: 'x' })).status, 400);
-    for (let i = 0; i < 6; i++) await anon.post('/api/recover', { username: an, recovery: 'wrong-code' });
-    assert.equal((await anon.post('/api/recover', { username: an, recovery: a.recovery })).status, 429, 'the attacked user backs off');
-    assert.equal((await anon.post('/api/recover', { username: bn, recovery: b.recovery })).status, 200, 'another user from the same client is not locked');
+    assert.equal((await anon.post('/api/recover', { next: NEWPW, username: '   ', recovery: 'x' })).status, 400);
+    assert.equal((await anon.post('/api/recover', { next: NEWPW, recovery: 'x' })).status, 400);
+    for (let i = 0; i < 6; i++) await anon.post('/api/recover', { next: NEWPW, username: an, recovery: 'wrong-code' });
+    assert.equal((await anon.post('/api/recover', { next: NEWPW, username: an, recovery: a.recovery })).status, 429, 'the attacked user backs off');
+    assert.equal((await anon.post('/api/recover', { next: NEWPW, username: bn, recovery: b.recovery })).status, 200, 'another user from the same client is not locked');
   } finally { await t.stop(); }
 });
 
@@ -98,7 +98,7 @@ test('Y6 [SR2b] official-setup: "--out <file> <exam.json>" in either order write
     assert.equal(r.status, 0, r.stderr);
     assert.equal(fs.statSync(out).mode & 0o777, 0o600);
     const rows = fs.readFileSync(out, 'utf8').trim().split('\n');
-    assert.equal(rows.length, 2 + 9, 'header, separator and nine people');
+    assert.equal(rows.length, 2 + 5, 'header, separator and five people (professor, two TAs, two students)');
     const pass = rows[2].split('|')[3].trim();
     assert.ok(pass.length >= 16 && !r.stdout.includes(pass), 'passphrases only go to the file');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }

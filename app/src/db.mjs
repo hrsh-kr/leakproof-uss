@@ -75,6 +75,17 @@ export function openDb(dir) {
     } catch (e) { db.exec('ROLLBACK'); throw e; }
     db.exec('PRAGMA foreign_keys = ON');
   }
+  // Per-exam class codes (TA and student join only the exam whose code they were given). The codes themselves are
+  // stored encrypted (join_box); the two HMAC columns allow a lookup without decrypting every exam.
+  const examCols = db.prepare('PRAGMA table_info(exams)').all().map((c) => c.name);
+  for (const col of ['join_box BLOB', 'join_ta_h TEXT', 'join_st_h TEXT'])
+    if (!examCols.includes(col.split(' ')[0])) db.exec(`ALTER TABLE exams ADD COLUMN ${col}`);
+  db.exec(`CREATE INDEX IF NOT EXISTS exams_join_ta ON exams(join_ta_h);
+    CREATE INDEX IF NOT EXISTS exams_join_st ON exams(join_st_h);
+    CREATE TABLE IF NOT EXISTS student_seats (
+      exam_id TEXT NOT NULL REFERENCES exams(id), account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      seat INTEGER NOT NULL, first_at INTEGER NOT NULL, views INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (exam_id, account_id), UNIQUE (exam_id, seat));`);
   return db;
 }
 

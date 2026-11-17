@@ -53,7 +53,7 @@ if [ -z "$ROOT" ]; then ROOT="$(find /var/lib/caddy -name root.crt 2>/dev/null |
 readf "$ROOT" > "$OUT/leakproof-root-ca.crt"
 FP="$(openssl x509 -in "$OUT/leakproof-root-ca.crt" -noout -fingerprint -sha256 | cut -d= -f2)"
 [ -n "$FP" ] || { echo "could not read a fingerprint from $ROOT" >&2; exit 1; }
-if [ -z "$CODE" ]; then CODE="$(readf /etc/leakproof/practice.env | sed -n 's/^LP_INVITE_CODE=//p' | tail -1)"; fi
+if [ -z "$CODE" ]; then CODE="$(readf /etc/leakproof/practice.env | sed -n 's/^LP_INVITE_PROF=//p' | tail -1)"; CODE="${CODE:-LP-PROF-G19} (professor; TAs and students: LP-TA-G19 / LP-STU-G19 plus the class code from their professor)"; fi
 [ -n "$CODE" ] || { echo "no course code (pass --course-code)" >&2; exit 1; }
 if [ "$NOCRED" = 1 ]; then TABLE='The demo credential sheet is posted separately (class post, 18 Nov). Practice accounts need no sheet: register with the course code.'
 else

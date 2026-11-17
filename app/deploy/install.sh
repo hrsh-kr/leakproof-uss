@@ -61,7 +61,8 @@ for spec in practice:8080:practice demo:7090:official official:9090:official; do
   IFS=: read -r inst port mode <<<"$spec"; f="/etc/leakproof/$inst.env"
   touch "$f"; setkey "$f" LP_PORT "$port"; setkey "$f" LP_MODE "$mode"; chmod 0640 "$f"
 done
-setkey /etc/leakproof/practice.env LP_INVITE_CODE "$CODE"
+# Course codes are per role (LP_INVITE_PROF / LP_INVITE_TA / LP_INVITE_STUDENT, defaults in src/config.mjs). The single
+# LP_INVITE_CODE of v1.0.x is no longer read; TAs and students also need their professor's per-exam class code.
 echo "$VM_IP" > /etc/leakproof/vm_ip
 install -d -o caddy -g caddy -m 0755 /var/log/caddy 2>/dev/null || { install -d -m 0755 /var/log/caddy; echo "note: no caddy user; /var/log/caddy created root-owned (Caddy may not be able to write its access log)"; }
 install -d -m 0755 /etc/caddy/leakproof.d
@@ -79,7 +80,7 @@ if [ "$FW" = 1 ]; then
 fi
 
 echo
-echo "Practice:  https://$VM_IP:8443/        Course code: $(sed -n 's/^LP_INVITE_CODE=//p' /etc/leakproof/practice.env | tail -1)"
+echo "Practice:  https://$VM_IP:8443/        Course codes: $(f=/etc/leakproof/practice.env; for r in PROF:LP-PROF-G19:professor TA:LP-TA-G19:TA STUDENT:LP-STU-G19:student; do IFS=: read -r k d n <<<"$r"; v="$(sed -n "s/^LP_INVITE_$k=//p" "$f" 2>/dev/null | tail -1)"; printf '%s (%s) ' "${v:-$d}" "$n"; done)"
 root_crt="$(find /var/lib/caddy -name root.crt 2>/dev/null | head -1 || true)"
 if [ -n "$root_crt" ]; then echo "Caddy root certificate: $root_crt"; openssl x509 -in "$root_crt" -noout -fingerprint -sha256; else echo "Caddy root certificate not created yet: open https://$VM_IP:8443/ once, then run deploy/make-package.sh"; fi
 echo "Next: bash deploy/smoke.sh https://$VM_IP:8443   |   demo pods: sudo bash deploy/demo-setup.sh   |   official on exam night: sudo bash deploy/enable-official.sh"

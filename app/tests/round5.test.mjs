@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { boot, practiceUser, sealAndVerify, releaseOpen } from './helpers.mjs';
+import { boot, practiceUser, sealAndVerify, releaseOpen, joinAs, PW, NEWPW } from './helpers.mjs';
 import { start } from '../server.mjs';
 import { loadConfig, loadKey } from '../src/config.mjs';
 import { openDb } from '../src/db.mjs';
@@ -23,6 +23,7 @@ const hasHeaders = (text) => { for (const k of Object.keys(SECURITY_HEADERS)) as
 const SCRIPT = new URL('../scripts/official-setup.mjs', import.meta.url).pathname;
 const EXAMPLE = new URL('../deploy/official.example.json', import.meta.url).pathname;
 const runSetup = (dir, args, env = {}) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', SCRIPT, EXAMPLE, ...args], { env: { ...process.env, LP_MODE: 'official', LP_DATA_DIR: dir, ...env }, encoding: 'utf8' });
+const runSetupFile = (dir, file) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', SCRIPT, file], { env: { ...process.env, LP_MODE: 'official', LP_DATA_DIR: dir }, encoding: 'utf8' });
 
 let t;
 test.before(async () => { t = await boot(); });
@@ -127,17 +128,17 @@ test('R5-S5 Node-level replies carry the security headers: Expect, missing Host,
 test('R5-S6 a Kelvin sign cannot alias another account: usernames are checked as ASCII before lower-casing', async () => {
   const b = await boot();
   try {
-    const kim = await b.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'kim99', display: 'Kim' });
+    const kim = await b.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'kim99', display: 'Kim' });
     assert.equal(kim.status, 201);
     const kelvin = 'Kim99';
     assert.equal(kelvin.toLowerCase(), 'kim99', 'the premise: it lower-cases to the same name');
-    const r = await b.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'Kate1', display: 'Kate' });
+    const r = await b.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'Kate1', display: 'Kate' });
     assert.equal(r.status, 400);
-    const l = await b.client().post('/api/login', { username: kelvin, password: kim.data.passphrase });
+    const l = await b.client().post('/api/login', { username: kelvin, password: PW });
     assert.equal(l.status, 401, 'login with the look-alike name fails even with the right passphrase');
-    const rec = await b.client().post('/api/recover', { username: kelvin, recovery: kim.data.recovery });
+    const rec = await b.client().post('/api/recover', { next: NEWPW, username: kelvin, recovery: kim.data.recovery });
     assert.equal(rec.status, 401);
-    assert.equal((await b.client().post('/api/login', { username: ' KIM99 ', password: kim.data.passphrase })).status, 200, 'plain upper case still works');
+    assert.equal((await b.client().post('/api/login', { username: ' KIM99 ', password: PW })).status, 200, 'plain upper case still works');
   } finally { await b.stop(); }
 });
 
@@ -145,13 +146,13 @@ test('R5-S6 control and format characters (NUL, line break, zero-width, bidi) ar
   const b = await boot();
   try {
     for (const bad of ['Ev\u0000e', 'Ev\ne', 'Ev​e', 'Ev‮e', 'Ev﻿e']) {
-      const r = await b.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'hid' + Math.random().toString(36).slice(2, 8), display: bad });
+      const r = await b.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'hid' + Math.random().toString(36).slice(2, 8), display: bad });
       assert.equal(r.status, 400, JSON.stringify(bad));
     }
-    assert.equal((await b.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'plain1', display: 'Zoë Müller 李' })).status, 201, 'ordinary Unicode stays allowed');
-    const { examId } = await practiceUser(b);
+    assert.equal((await b.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'plain1', display: 'Zoë Müller 李' })).status, 201, 'ordinary Unicode stays allowed');
+    const { c: pc, examId } = await practiceUser(b);
     const ta = b.client();
-    const taReg = await ta.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: 'ta-s6-' + (Date.now() % 9999), display: 'TA Control' });
+    const taReg = await joinAs(ta, 'ta', pc, examId, 'ta-s6-' + (Date.now() % 9999), 'TA Control');
     assert.equal(taReg.status, 201);
     const q = (over) => ta.post(`/api/exams/${examId}/questions`, { topic: 0, text: 'A perfectly fine question?', options: ['a', 'b', 'c', 'd'], correct: 0, ...over });
     assert.equal((await q({ text: 'What is​ this?' })).status, 400);
@@ -222,9 +223,9 @@ test('R5-S7b starting over replaces the waiting request, gives new words, and th
 });
 
 test('R5-N2 joiners used by Devanagari, Persian and emoji are accepted; other invisible characters are still refused', async () => {
-  const { examId } = await practiceUser(t);
+  const { c: pc, examId } = await practiceUser(t);
   const tac = t.client();
-  const taReg = await tac.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: 'ta-n2-' + (Date.now() % 9999), display: 'TA N2' });
+  const taReg = await joinAs(tac, 'ta', pc, examId, 'ta-n2-' + (Date.now() % 9999), 'TA N2');
   assert.equal(taReg.status, 201);
   const q = (text, options) => tac.post(`/api/exams/${examId}/questions`, { topic: 0, text, options, correct: 0 });
   const hindi = 'क्\u200Dष और ज्ञ किस लिपि के संयुक्ताक्षर हैं?';
@@ -368,15 +369,15 @@ test('R5-S13 LP_MODE decides behaviour and wins over LP_INSTANCE; the instance n
   try {
     const h = (await demo.client().get('/healthz')).data;
     assert.deepEqual([h.instance, h.mode], ['demo', 'official']);
-    assert.equal((await demo.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'nobody1', display: 'No' })).status, 404, 'official behaviour: no self-registration');
+    assert.equal((await demo.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'nobody1', display: 'No' })).status, 404, 'official behaviour: no self-registration');
     assert.equal((await demo.client().post('/api/practice/reset')).status, 404, 'practice-only routes are hidden');
   } finally { await demo.stop(); }
   const odd = await boot({ LP_MODE: 'practice', LP_INSTANCE: 'official' });
   try {
     assert.equal((await odd.client().get('/healthz')).data.instance, 'official');
-    const reg = await odd.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'somebody1', display: 'So' });
+    const reg = await odd.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'somebody1', display: 'So' });
     assert.equal(reg.status, 201, 'practice behaviour despite the name');
-    const c = odd.client(); await c.post('/api/login', { username: 'somebody1', password: reg.data.passphrase });
+    const c = odd.client(); await c.post('/api/login', { username: 'somebody1', password: PW });
     const me = (await c.get('/api/me')).data;
     assert.deepEqual([me.instance, me.name], ['practice', 'official']);
   } finally { await odd.stop(); }
@@ -392,7 +393,8 @@ test('R5-S14 official-setup --out writes a 0600 markdown table and prints no pas
     const md = fs.readFileSync(out, 'utf8').trim().split('\n');
     assert.equal(md[0], '| role | username | passphrase | recovery code |');
     assert.equal(md.length, 2 + people.length);
-    assert.match(md[2], new RegExp(`^\\| ${people[0].display} \\(${people[0].caps.join(', ')}\\) \\| ${people[0].username} \\| [a-z2-9]{4}(-[a-z2-9]{4}){3} \\| `));
+    assert.match(md[2], new RegExp(`^\\| Professor \\| ${people[0].username} \\| [a-z2-9]{4}(-[a-z2-9]{4}){3} \\| `));
+    assert.deepEqual(md.slice(2).map((l) => l.split('|')[1].trim()), ['Professor', 'TA', 'TA', 'Student', 'Student'], 'the role column names the role');
     assert.equal(fs.statSync(out).mode & 0o777, 0o600, 'an existing 0644 file is tightened too');
     const pass = md[2].split('|')[3].trim(), rec = md[2].split('|')[4].trim();
     assert.ok(!r.stdout.includes(pass) && !r.stdout.includes(rec), 'no secret on stdout');
@@ -410,6 +412,12 @@ test('R5-S14 official-setup --out writes a 0600 markdown table and prints no pas
     assert.match(bare.stdout, /first login asks for a new passphrase/);
     assert.equal(runSetup(path.join(dir, 'd3'), ['--out']).status, 2, '--out needs a file');
     assert.equal(runSetup(path.join(dir, 'd4'), [], { LP_MODE: 'practice' }).status, 2, 'practice mode refused');
+    // Role mixes that could never seal (old five key holders) or that are not a role at all are refused up front.
+    const bad = (people) => { const f = path.join(dir, `bad${Math.random()}.json`); fs.writeFileSync(f, JSON.stringify({ ...JSON.parse(fs.readFileSync(EXAMPLE, 'utf8')), people })); return f; };
+    const prof = { username: 'prof1', display: 'P', caps: ['run', 'print', 'hold'] };
+    assert.equal(runSetupFile(path.join(dir, 'd5'), bad([prof, { ...prof, username: 'prof2' }])).status, 2, 'two key holders refused');
+    assert.equal(runSetupFile(path.join(dir, 'd6'), bad([prof, { username: 'holder1', display: 'H', caps: ['hold'] }])).status, 2, 'a bare key holder is not a role');
+    assert.equal(runSetupFile(path.join(dir, 'd7'), bad([{ username: 'ta9', display: 'T', caps: ['submit'] }])).status, 2, 'no professor refused');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -420,7 +428,7 @@ test('R5-S14 official-setup --demo creates accounts without must_change, with an
     assert.equal(r.status, 0, r.stderr);
     const db = openDb(path.join(dir, 'data'));
     const rows = db.prepare('SELECT must_change FROM accounts WHERE simulated = 0').all();
-    assert.ok(rows.length >= 8 && rows.every((x) => x.must_change === 0)); db.close();
+    assert.ok(rows.length === 5 && rows.every((x) => x.must_change === 0)); db.close();
     const row = fs.readFileSync(out, 'utf8').trim().split('\n')[2].split('|').map((x) => x.trim());
     const s = await start(loadConfig({ LP_MODE: 'official', LP_DATA_DIR: path.join(dir, 'data'), LP_PORT: '0', LP_DEV_HTTP: '1' }));
     try {

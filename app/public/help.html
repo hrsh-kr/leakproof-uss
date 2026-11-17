@@ -25,9 +25,11 @@
       <h2>How to start (practice instance)</h2>
       <p>Practice address: <code>https://192.168.2.238:8443/</code>. Demo pods (shared accounts, listed in <code>TESTERS.md</code>): <code>https://192.168.2.238:7443/</code>.</p>
       <ol>
-        <li>Open the app, choose <b>Join a class</b> and enter the course code for your role — <code>LP-PROF-G19</code> (professor), <code>LP-TA-G19</code> (TA), or <code>LP-STU-G19</code> (student) — a username (3 to 32 characters: lowercase letters, digits, dot, dash or underscore), and a display name.</li>
-        <li>You see a passphrase and a recovery code once. Press <b>Copy both</b> or <b>Download</b>, tick the box, then <b>Continue</b>.</li>
-        <li>In the practice instance you can register accounts for all three roles: TA, professor (key holder), and student. Follow the <b>Next step</b> box on the exam page.</li>
+        <li>Open the app, choose <b>Join a class</b>, pick your role and enter its course code — <code>LP-PROF-G19</code> (professor), <code>LP-TA-G19</code> (TA) or <code>LP-STU-G19</code> (student) — plus a username (3 to 32 characters: lowercase letters, digits, dot, dash or underscore) and a display name.</li>
+        <li><b>TAs and students also need a class code</b> from their professor. The professor finds the TA code and the student code on the <b>Professor</b> tab of the exam. A TA can join while questions are being collected; a student can join until the paper is released.</li>
+        <li><b>Choose your own password</b> (typed twice). The checklist under the box shows the rules: 12 or more characters; at least 3 of lower case, upper case, digits and symbols (or 20+ characters, like a sentence); no runs like <code>1234</code> or <code>qwer</code>; not a common password or common words (even as <code>P@ssw0rd</code>); not your username or name. The server checks the same rules.</li>
+        <li>You then see a <b>recovery code</b> once. It lets you choose a new password if you forget yours. Press <b>Copy</b>, <b>Download</b> or <b>I wrote it down</b>, tick the box, then <b>Continue</b>. You are logged in only after Continue; the Back button stays on this page until then.</li>
+        <li>To try every role, register a professor first, then a TA and a student in separate private windows with that professor's class codes. Follow the <b>Next step</b> box on the exam page.</li>
         <li>The browser warns about the certificate because it is self-signed. This is expected. Press Advanced and then proceed (Chrome and Edge), Accept the Risk and Continue (Firefox) or visit this website (Safari). To check the root certificate, compare its SHA-256 fingerprint with the one in <code>TESTERS.md</code>; the steps are in section 2 of the user guide.</li>
       </ol>
       <p class="small muted">The practice instance has no shared accounts: register your own. The demo pods have shared accounts on the honour system, restored every night. This page shows no passwords.</p>
@@ -65,11 +67,11 @@
       <ul>
         <li>The server operator can read memory while the paper is open. A trusted operator is assumed; see <code>SECURITY.md</code>.</li>
         <li>The certificate is self-signed, so the browser warns once.</li>
-        <li>The two-word check is a presence check with 5 tries per key holder and request, not strong cryptography.</li>
+        <li>The two-word check ties an approval to one release request, with 5 tries per request; it is not strong cryptography.</li>
         <li>The professor can veto a release by refusing it; the log shows it.</li>
-        <li>A trace names a seat, not a person. It needs the questions with their options to name a single seat.</li>
-        <li>In the practice instance you can register one account per role to try the full pipeline.</li>
-        <li>Rate limits apply per network and per account.</li>
+        <li>A trace names a seat. For a seat a student holds online it also names that student (professor only). It needs the questions with their options to name a single seat.</li>
+        <li>A student sees only the copy of their own seat (its own question and option order and copy id), so a leaked screenshot traces to that seat. A seat a student holds online is never printed for anyone else.</li>
+        <li>Rate limits apply per network (IPv6: per /64) and per account. Wrong passwords from browsers that never logged in to an account share 20 tries per hour for that account; a browser that logged in before is not affected by other people's wrong tries.</li>
         <li>Full list: section 12 of the user guide and <code>SECURITY.md</code> section 4.</li>
       </ul>
     </div>
@@ -83,8 +85,13 @@
         <li>A server restart locks the paper again and closes open requests.</li>
         <li>You are signed out after 30 minutes without activity.</li>
         <li>A missing role answers "Not found", the same as a missing exam.</li>
-        <li>There are no email or SMS codes. The recovery code is the way back in.</li>
+        <li>There are no email or SMS codes. The recovery code is the way back in. Changing your password keeps the recovery code; using the recovery code gives you a new one.</li>
+        <li>A password the checklist refuses is refused by the server too.</li>
+        <li>The professor can remove a TA or student from the exam (Members card). A TA removed before sealing loses their questions.</li>
+        <li>One account keeps at most 5 sessions; a sixth login ends the oldest.</li>
         <li>Usernames are unique, so sign-up says when a name is taken.</li>
+        <li>Signing out in one tab signs out every LeakProof tab in that browser, including open copy and answer-key tabs.</li>
+        <li>A TA can delete at most 20 questions per exam.</li>
         <li>Five wrong tries of the two words lock the professor out of that request. A new release request is needed.</li>
         <li>A trace needs the questions with their options to name a single seat.</li>
         <li>The answer key is per seat: each seat has its own question order.</li>

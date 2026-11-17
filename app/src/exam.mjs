@@ -5,7 +5,7 @@ import { tx, checkpoint } from './db.mjs';
 import { WORDS } from './words.mjs';
 
 export const THRESHOLD = 1, HOLDERS = 1, MIN_VERIFIED = 1, MIN_SETTERS = 1, RELEASE_TTL = 15 * 60 * 1000, MAX_WORD_TRIES = 5;
-export const MAX_OPEN = 200, OPEN_IDLE = 6 * 3600_000, REPRINT_LOGGED = 3;
+export const MAX_OPEN = 200, OPEN_IDLE = 6 * 3600_000, REPRINT_LOGGED = 3, MAX_DELETES = 20;
 const HIDDEN = /(?![\u200C\u200D])[\p{Cc}\p{Cf}]/u; // joiners stay: Devanagari, Persian and emoji need them
 
 export class Refusal extends Error {
@@ -41,6 +41,64 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
   const wrap = (buf, aad) => aeSeal(serverKey, buf, aad);
   const unwrap = (box, aad) => aeOpen(serverKey, Buffer.from(box), aad);
 
+  // ---------- Class codes: one for TAs and one for students, per exam. ----------
+  // Joining needs the code of THIS exam, so a stranger can no longer be placed in somebody else's exam.
+  // 10 base32 characters = 50 bits; tried only through the rate-limited, back-off-protected sign-up.
+  const normCode = (c) => String(c ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const codeHash = (role, code) => hmac(serverKey, 'class-code', role, normCode(code)).toString('hex');
+  const newCode = (prefix) => `${prefix}-${b32(rand(10), 5)}-${b32(rand(10), 5)}`;
+  function setCodes(examId) {
+    const codes = { ta: newCode('TA'), student: newCode('ST') };
+    db.prepare('UPDATE exams SET join_box = ?, join_ta_h = ?, join_st_h = ? WHERE id = ?')
+      .run(wrap(Buffer.from(JSON.stringify(codes)), `join|${examId}`), codeHash('ta', codes.ta), codeHash('student', codes.student), examId);
+    return codes;
+  }
+  function classCodes(examId) {
+    const e = db.prepare('SELECT join_box FROM exams WHERE id = ?').get(examId);
+    return e?.join_box ? JSON.parse(unwrap(e.join_box, `join|${examId}`)) : setCodes(examId);
+  }
+  function rotateCodes(examId, actor) {
+    const codes = setCodes(examId);
+    log.append(examId, actor, 'class.codes_changed', {});
+    return codes;
+  }
+  // ---------- Members: who joined, so the professor can see them and remove anyone who should not be there ----------
+  // Shown to the professor only (run cap). Seat = the online copy a student holds, so a traced seat names a person.
+  function members(examId) {
+    return db.prepare(`SELECT a.id, a.username, a.display, a.simulated, asg.cap, ss.seat,
+        (SELECT COUNT(*) FROM questions q WHERE q.exam_id = asg.exam_id AND q.setter_id = a.id) questions
+      FROM assignments asg JOIN accounts a ON a.id = asg.account_id
+      LEFT JOIN student_seats ss ON ss.exam_id = asg.exam_id AND ss.account_id = a.id
+      WHERE asg.exam_id = ? AND asg.cap IN ('submit', 'attempt') ORDER BY asg.cap DESC, a.username`).all(examId)
+      .map((m) => ({ id: m.id, role: m.cap === 'submit' ? 'ta' : 'student', username: m.simulated ? null : m.username, display: m.display,
+        simulated: !!m.simulated, seat: m.seat ?? null, questions: m.questions }));
+  }
+  // Takes away the person's role in this exam at once (their next request is a 404). A TA removed before sealing also
+  // loses their questions, so nothing they wrote can be drawn. A removed student's seat stays theirs on record: the seat
+  // number is never handed to someone else, so a trace of that seat still names them.
+  function removeMember(examId, actor, accountId) {
+    return tx(db, () => {
+      const exam = mustExam(examId);
+      const caps = capsOf(accountId, examId).map((c) => c.cap);
+      if (!caps.length) throw new Refusal(404, 'Not found');
+      if (caps.some((c) => c === 'run' || c === 'print' || c === 'hold')) refuse('The professor cannot be removed from their own exam.');
+      const acc = db.prepare('SELECT simulated FROM accounts WHERE id = ?').get(accountId);
+      if (acc?.simulated) refuse('The simulated practice TA cannot be removed.');
+      let dropped = 0;
+      if (caps.includes('submit') && exam.stage === 'COLLECTING') dropped = db.prepare('DELETE FROM questions WHERE exam_id = ? AND setter_id = ?').run(examId, accountId).changes;
+      db.prepare('DELETE FROM assignments WHERE exam_id = ? AND account_id = ?').run(examId, accountId);
+      log.append(examId, actor, 'member.removed', { reason: caps.includes('submit') ? 'ta' : 'student', count: dropped });
+      return { removed: true, questionsDeleted: dropped };
+    });
+  }
+
+  // role: 'ta' | 'student'. Returns the exam or null; the caller answers the same way for "no such code" and "wrong role".
+  function findByClassCode(role, code) {
+    if (normCode(code).length < 8 || normCode(code).length > 20) return null;
+    const col = role === 'ta' ? 'join_ta_h' : 'join_st_h';
+    return db.prepare(`SELECT * FROM exams WHERE ${col} = ?`).get(codeHash(role, code)) || null;
+  }
+
   const getExam = (examId) => db.prepare('SELECT * FROM exams WHERE id = ?').get(examId);
   const mustExam = (examId) => getExam(examId) || (() => { throw new Refusal(404, 'Not found'); })();
   const topicsOf = (exam) => JSON.parse(exam.topics);
@@ -51,11 +109,14 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
     log.append(r.exam_id, 'system', 'release.interrupted', { release: r.id, reason: 'restart' });
     console.log(`release ${r.id} interrupted by restart`);
   }
+  // Exams made before class codes existed get theirs now.
+  for (const e of db.prepare('SELECT id FROM exams WHERE join_box IS NULL').all()) setCodes(e.id);
 
   function createExam({ title, topics, winStart, winEnd, seatLimit, practice }) {
     const examId = id();
     db.prepare('INSERT INTO exams (id,title,stage,practice,topics,win_start,win_end,seat_limit,created) VALUES (?,?,?,?,?,?,?,?,?)')
       .run(examId, title, 'COLLECTING', practice ? 1 : 0, JSON.stringify(topics), winStart, winEnd, seatLimit, now());
+    setCodes(examId);
     log.append(examId, 'system', 'exam.created', { topics: topics.length, seats: seatLimit });
     return examId;
   }
@@ -77,7 +138,7 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
   const has = (accountId, examId, cap) => capsOf(accountId, examId).some((c) => c.cap === cap);
   const slotsOf = (accountId, examId) => capsOf(accountId, examId).filter((c) => c.cap === 'hold').map((c) => c.slot).sort();
 
-  // ---------- Setters ----------
+  // ---------- TAs (question setters) ----------
   function validateQuestion(exam, q) {
     const topics = topicsOf(exam);
     if (!Number.isInteger(q.topic) || q.topic < 0 || q.topic >= topics.length) bad('Pick one of the listed topics.');
@@ -112,22 +173,19 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
         ...(r.ct ? JSON.parse(unwrap(r.ct, `q|${examId}|${r.id}`)) : {}) }));
   }
 
-  function allQuestions(examId) {
-    const st = getOpen(examId);
-    if (!st) throw new Refusal(423, 'The exam paper is not currently open. The professor needs to release it at exam time.');
-    return st.paper.map((q, i) => ({ seq: i + 1, topic: q.topic, text: q.text, options: q.options }));
-  }
-
   function deleteQuestion(examId, setterId, qid) {
     const exam = mustExam(examId);
     const row = db.prepare('SELECT setter_id FROM questions WHERE id = ? AND exam_id = ?').get(qid, examId);
     if (!row || row.setter_id !== setterId) throw new Refusal(404, 'Not found');
     if (exam.stage !== 'COLLECTING') refuse('This exam is sealed. Questions can no longer be changed.');
+    // Bounded: each delete (and the resubmission it allows) writes public log rows, so a TA cannot flood the log.
+    const n = db.prepare("SELECT COUNT(*) n FROM log WHERE exam_id = ? AND actor = ? AND action = 'question.deleted'").get(examId, setterId).n;
+    if (n >= MAX_DELETES) refuse(`You have deleted ${MAX_DELETES} questions in this exam, which is the limit. Ask the professor if you need to change more.`);
     db.prepare('DELETE FROM questions WHERE id = ?').run(qid);
     log.append(examId, setterId, 'question.deleted', { count: 1 });
   }
 
-  // Counts only: the exam cell never sees question text.
+  // Counts only: the professor never sees question text before release.
   function counts(examId) {
     const exam = mustExam(examId);
     const rows = db.prepare('SELECT topic, COUNT(*) n, COUNT(DISTINCT setter_id) s FROM questions WHERE exam_id = ? GROUP BY topic').all(examId);
@@ -252,9 +310,9 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
     const g1 = approved.length >= THRESHOLD, g2 = inWindow(exam), g3 = r.seats <= exam.seat_limit;
     let next;
     if (r.state === 'open') next = 'Paper is open. Print one copy per seat.';
-    else if (r.state === 'refused') next = 'A key holder refused. Talk to them, then request release again.';
+    else if (r.state === 'refused') next = 'The key card refused this request. Nothing was opened. Request release again.';
     else if (r.state === 'replaced') next = 'A newer request replaced this one.';
-    else if (r.state === 'interrupted') next = 'The server restarted: request release again. Key holders approve again.';
+    else if (r.state === 'interrupted') next = 'The server restarted: request release again and approve it again with the key card.';
     else if (r.state === 'failed') next = 'The two words were typed wrong too many times, so this request closed. Request release again.';
     else if (expired) next = 'This request expired after 15 minutes. Request release again.';
     else if (!g2) next = `Outside the print window: ${windowText(exam)}`;
@@ -275,13 +333,13 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
     if (!r) throw new Refusal(404, 'Not found');
     if (!slotsOf(holderId, r.exam_id).includes(slot)) throw new Refusal(404, 'Not found');
     if (r.state !== 'pending') refuse('This request is no longer open.');
-    if (now() > r.expires) { drop(rid); refuse('This request expired after 15 minutes. Ask the exam cell to request again.'); }
+    if (now() > r.expires) { drop(rid); refuse('This request expired after 15 minutes. Request release again.'); }
     if (db.prepare('SELECT 1 FROM approvals WHERE release_id = ? AND slot = ?').get(rid, slot)) refuse('This card has already answered this request.');
     const card = cardFor(r.exam_id, holderId, slot);
     if (decision !== 'approve' && decision !== 'refuse') bad('Choose approve or refuse.');
-    // Both answers need the two words, so only someone who can see the exam cell screen can approve or refuse.
+    // Both answers need the two words, so only someone who can see the Professor screen can approve or refuse.
     const wkey = `${rid}|${holderId}`;
-    if ((wrongWords.get(wkey) || 0) >= MAX_WORD_TRIES) refuse('You typed the two words wrong 5 times for this request, so you are locked out of it. Ask the exam cell to press Start over with new words.');
+    if ((wrongWords.get(wkey) || 0) >= MAX_WORD_TRIES) refuse('You typed the two words wrong 5 times for this request, so you are locked out of it. Press Start over with new words on the Professor tab.');
     const expect = words(r);
     const typed = String(typedWords || '').toLowerCase().split(/[^a-z]+/).filter(Boolean);
     if (typed.length !== 2 || typed[0] !== expect[0] || typed[1] !== expect[1]) {
@@ -290,9 +348,9 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
       log.append(r.exam_id, holderId, 'release.words_failed', { release: rid, slot, count: n });
       if (n >= MAX_WORD_TRIES) {
         log.append(r.exam_id, holderId, 'release.holder_locked', { release: rid, slot, reason: 'words' });
-        refuse('You typed the two words wrong 5 times for this request, so you are locked out of it. Ask the exam cell to press Start over with new words.');
+        refuse('You typed the two words wrong 5 times for this request, so you are locked out of it. Press Start over with new words on the Professor tab.');
       }
-      refuse('The two words do not match the exam cell screen. Read them again from that screen.');
+      refuse('The two words do not match the Professor screen. Read them again from that screen.');
     }
     if (decision === 'refuse') {
       tx(db, () => {
@@ -366,8 +424,12 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
   }
   const copyIdOf = (exam, state, seat) => b32(hmac(state.copySecret, 'copy-id', exam.id, String(seat), exam.set_hash), 8) + '-' + seat;
 
+  // One seat, one copy: a seat a student holds online is never printed for someone else (and the other way round),
+  // so a traced seat number always points at exactly one copy holder.
+  const onlineHolder = (examId, seat) => db.prepare('SELECT a.display, a.username FROM student_seats ss JOIN accounts a ON a.id = ss.account_id WHERE ss.exam_id = ? AND ss.seat = ?').get(examId, seat);
   function copy(examId, actor, seat) {
     const { exam, state } = openState(examId, seat);
+    if (onlineHolder(examId, seat)) refuse(`Seat ${seat} is the online copy of a student (see Members). Print a different seat.`, { gate: 'G3' });
     const prior = db.prepare('SELECT fetches FROM copies WHERE exam_id = ? AND seat = ?').get(examId, seat);
     if (prior) db.prepare('UPDATE copies SET fetches = fetches + 1 WHERE exam_id = ? AND seat = ?').run(examId, seat);
     else db.prepare('INSERT INTO copies (exam_id, seat, fetches, first_at) VALUES (?,?,?,?)').run(examId, seat, 1, now());
@@ -390,6 +452,39 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
     const lay = layoutFor(state, seat);
     log.append(examId, actor, 'key.viewed', { seat });
     return { seat, copyId: copyIdOf(exam, state, seat), answers: lay.map((x) => 'ABCD'[x.opts.indexOf(state.paper[x.q].correct)]) };
+  }
+
+  // ---------- Student: the copy of the student's own seat ----------
+  // A student sees exactly one seat's copy (own question and option order, copy id), so a leaked screenshot traces
+  // to that seat like a printed copy does. The seat is given once per exam and never changes hands.
+  function studentCopy(examId, studentId) {
+    const exam = mustExam(examId);
+    const state = getOpen(examId);
+    if (exam.stage !== 'RELEASED' || !state) throw new Refusal(423, 'The exam paper is not open. The professor releases it at exam time.');
+    if (!inWindow(exam)) refuse('The print window has closed, so the paper can no longer be viewed.');
+    const row = tx(db, () => {
+      const mine = db.prepare('SELECT seat, views FROM student_seats WHERE exam_id = ? AND account_id = ?').get(examId, studentId);
+      if (mine) return mine;
+      // Seats already printed on paper are skipped: their order belongs to the person sitting there.
+      const taken = new Set(db.prepare('SELECT seat FROM student_seats WHERE exam_id = ? UNION SELECT seat FROM copies WHERE exam_id = ?').all(examId, examId).map((r) => r.seat));
+      let seat = 1;
+      while (taken.has(seat)) seat++;
+      if (seat > state.seats) refuse(`All ${state.seats} seats of this release are taken (online or printed). Ask the professor to release for more seats.`);
+      db.prepare('INSERT INTO student_seats (exam_id, account_id, seat, first_at, views) VALUES (?,?,?,?,0)').run(examId, studentId, seat, now());
+      return { seat, views: 0 };
+    });
+    if (row.seat > state.seats) refuse(`Your seat ${row.seat} is not part of this release (${state.seats} seats). Ask the professor.`);
+    const views = row.views + 1;
+    db.prepare('UPDATE student_seats SET views = ? WHERE exam_id = ? AND account_id = ?').run(views, examId, studentId);
+    // Like reprints: the first few views are logged; the seat itself is not published (the log never points at a seat's owner).
+    const head = views <= REPRINT_LOGGED ? log.append(examId, studentId, 'copy.viewed', { fetch: views }) : log.head();
+    state.last = now();
+    const lay = layoutFor(state, row.seat);
+    return {
+      seat: row.seat, title: exam.title, copyId: copyIdOf(exam, state, row.seat),
+      questions: lay.map((x, n) => { const q = state.paper[x.q]; return { n: n + 1, text: q.text, options: x.opts.map((o) => q.options[o]) }; }),
+      setHash: exam.set_hash, head,
+    };
   }
 
   // ---------- Trace: which seat could this leaked fragment come from? ----------
@@ -415,12 +510,16 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
       const lay = layoutFor(state, seat);
       for (let k = 0; k + frag.length <= lay.length; k++) {
         const fits = frag.every((f, i) => lay[k + i].q === f.q && isSubsequence(f.opts, lay[k + i].opts));
-        if (fits) { matches.push({ seat, from: k + 1, to: k + frag.length }); break; }
+        if (fits) {
+          const who = onlineHolder(examId, seat);
+          matches.push({ seat, from: k + 1, to: k + frag.length, ...(who ? { student: `${who.display} (${who.username})` } : {}) });
+          break;
+        }
       }
     }
     // Count only: the public log must not point at a seat (a trace is a lead, not a verdict).
     log.append(examId, actor, 'trace.run', { fragment: frag.length, matches: matches.length });
-    const base = 'A trace names a seat, not a person. It is a lead, not a verdict.';
+    const base = 'A trace names a seat, not a person; for a seat a student holds online it shows who holds it. It is a lead, not a verdict.';
     const withOpts = frag.some((f) => f.opts.length);
     const many = matches.length > 1 ? (withOpts ? `${matches.length} seats match; the pasted options do not narrow it to one. Paste more questions or options. ` : `${matches.length} seats match; paste the options as well for a single seat. `) : '';
     return { fragmentQuestions: frag.length, matches, note: many + base };
@@ -434,7 +533,8 @@ export function makeExams({ db, log, serverKey, now = Date.now }) {
     return { seed: unwrap(exam.seed, `seed|${examId}`).toString('hex'), pool, drawn: JSON.parse(exam.drawn) };
   }
 
-  return { createExam, assign, capsOf, has, slotsOf, getExam, mustExam, topicsOf, submit, myQuestions, allQuestions, deleteQuestion, counts,
+  return { createExam, assign, capsOf, has, slotsOf, getExam, mustExam, topicsOf, submit, myQuestions, studentCopy, deleteQuestion, counts,
+    classCodes, rotateCodes, findByClassCode, inWindow, members, removeMember,
     sealExam, fetchShare, verifyShare, verifiedCount, requestRelease, releaseView, decide, copy, answerKey, trace, seedReveal,
     isOpen, _opened: opened, _pending: pending };
 }

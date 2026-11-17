@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
-import { boot, practiceUser, sealAndVerify, releaseOpen } from './helpers.mjs';
+import { boot, practiceUser, sealAndVerify, releaseOpen, joinAs, PW } from './helpers.mjs';
 import { start } from '../server.mjs';
 import { openDb, tx } from '../src/db.mjs';
 import { makeLog } from '../src/log.mjs';
@@ -141,7 +141,7 @@ test('X5 [SR3/SR10] question rules: lengths, exactly four distinct options, boun
     const prof = await practiceUser(t);
     // Register a TA to submit questions
     const ta = t.client();
-    const tr = await ta.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: `taxtest-${Date.now() % 9999}`, display: 'TA X' });
+    const tr = await joinAs(ta, 'ta', prof.c, prof.examId, `taxtest-${Date.now() % 9999}`, 'TA X');
     assert.equal(tr.status, 201);
     const examId = prof.examId;
     const ok = { topic: 0, text: 'A valid question text?', options: ['a1', 'b2', 'c3', 'd4'], correct: 0 };
@@ -317,7 +317,7 @@ test('X13 [SR2] backoff is keyed by user AND client: failures against one userna
     for (let i = 0; i < 6; i++) await t.client().post('/api/login', { username: an, password: 'wrong' });
     assert.equal((await t.client().post('/api/login', { username: an, password: a.passphrase })).status, 429, 'the attacked account is backing off');
     assert.equal((await t.client().post('/api/login', { username: bn, password: b.passphrase })).status, 200, 'another user from the same client is not locked');
-    const r = await t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'shortdisp1', display: 'x' });
+    const r = await t.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'shortdisp1', display: 'x' });
     assert.equal(r.status, 400);
   } finally { await t.stop(); }
 });
@@ -336,7 +336,8 @@ test('X14 [SR1/SR3/SR2b] official: only staff see counts and the printed list; a
     assert.equal((await c.post('/api/login', { username: 'fresh1', password: op.passphrase })).status, 200);
     const me = await c.get('/api/me'); assert.equal(me.status, 200); assert.equal(me.data.mustChange, true);
     assert.equal((await c.get(`/api/exams/${f.id}`)).status, 403);
-    assert.equal((await c.post('/api/passphrase', { current: op.passphrase })).status, 200);
+    const act = await c.post('/api/password', { current: op.passphrase, next: PW });
+    assert.equal(act.status, 200); assert.match(act.data.recovery, /^[a-z2-9]{4}(-[a-z2-9]{4}){2}$/, 'activation issues a recovery code only the owner sees');
     assert.ok(t.db.prepare("SELECT 1 FROM log WHERE action = 'account.activated'").get(), 'first change is logged as activation');
     const c2 = t.client(); const op2 = await t.app.createAccount('fresh2', 'Fresh2', { mustChange: true });
     await c2.post('/api/login', { username: 'fresh2', password: op2.passphrase });
@@ -370,7 +371,7 @@ test('X16 [SR1] a JSON array or a DELETE with a body is refused or ignored, neve
   try {
     const prof = await practiceUser(t);
     const ta = t.client();
-    await ta.post('/api/register', { invite: 'LP-TA-G19', role: 'ta', username: `tax16-${Date.now() % 9999}`, display: 'TA X16' });
+    await joinAs(ta, 'ta', prof.c, prof.examId, `tax16-${Date.now() % 9999}`, 'TA X16');
     const examId = prof.examId;
     assert.equal((await prof.c.post('/api/login', [1, 2])).status, 400);
     assert.equal((await prof.c.post('/api/login', 'null')).status, 400);
@@ -459,9 +460,9 @@ test('X21 [SR2/FCS] two racing requests: only one passphrase change wins, and a 
   const t = await boot();
   try {
     const { c, passphrase } = await practiceUser(t);
-    const two = await Promise.all([c.post('/api/passphrase', { current: passphrase }), c.post('/api/passphrase', { current: passphrase })]);
+    const two = await Promise.all([c.post('/api/password', { current: passphrase, next: 'Green-Kite-Lake-77' }), c.post('/api/password', { current: passphrase, next: 'Green-Kite-Lake-78' })]);
     assert.deepEqual(two.map((r) => r.status).sort(), [200, 409], 'exactly one change wins');
-    const reg = () => t.client().post('/api/register', { invite: 'USS-PRACTICE', username: 'racer01', display: 'Racer' });
+    const reg = () => t.client().post('/api/register', { password: PW, invite: 'LP-PROF-G19', role: 'professor', username: 'racer01', display: 'Racer' });
     const rr = await Promise.all([reg(), reg(), reg()]);
     assert.deepEqual(rr.map((r) => r.status).sort(), [201, 409, 409], 'one account, the others get a clean 409 (not a 500)');
   } finally { await t.stop(); }
