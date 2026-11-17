@@ -168,7 +168,7 @@ test('S8 shared networks: only successful sign-ups count, and check-head has its
     assert.equal((await c.post('/api/public/check-head', { head: 'a'.repeat(64) })).status, 200, 'check-head is not in the auth bucket');
   } finally { await b.stop(); }
   const d = loadConfig({});
-  assert.deepEqual([d.registerPerIp, d.maxAccounts, d.authPerMin], [30, 2000, 30]);
+  assert.deepEqual([d.registerPerIp, d.maxAccounts, d.authPerMin], [30, 2000, 10]); // authPerMin default tightened to 10 (DOS-08)
 });
 
 test('S9/S10 refusing needs the two words; wrong words are logged; 5 wrong attempts lock out that holder only, not the request', async () => {

@@ -27,8 +27,8 @@ export function loadConfig(env = process.env) {
     devHttp: env.LP_DEV_HTTP === '1',                 // local http without the Secure cookie flag (tests only)
     headersTimeout: Number(env.LP_HEADERS_TIMEOUT_MS || 10_000),
     perIpSockets: Number(env.LP_PER_IP_SOCKETS || 40),
-    globalPerMin: Number(env.LP_GLOBAL_PER_MIN || 600),  // all API calls per client per minute
-    authPerMin: Number(env.LP_AUTH_PER_MIN || 30),      // login/register/recover attempts per client per minute (NAT-friendly)
+    globalPerMin: Number(env.LP_GLOBAL_PER_MIN || 300),  // all API calls per client per minute (DOS-10: halved from 600)
+    authPerMin: Number(env.LP_AUTH_PER_MIN || 10),       // login/register/recover attempts per client per minute (DOS-08: 1 attempt per 6 s max)
     publicPerMin: Number(env.LP_PUBLIC_PER_MIN || 60),  // public check-head calls per client per minute
     registerPerIp: Number(env.LP_REGISTER_PER_IP || 30), // successful practice sign-ups per client per day
   };

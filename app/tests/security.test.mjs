@@ -305,3 +305,19 @@ test('FCS-G1/G2 a login flood does not freeze the server: password hashing runs 
     assert.ok(ms < 250, `health check took ${ms} ms during the login flood`);
   } finally { await t.stop(); }
 });
+
+test('DOS-08 auth rate-limit default (10/min) caps login flood before it can saturate the CPU', async () => {
+  // Uses LP_AUTH_PER_MIN=10 (the production default; boot() overrides to 1000 for other tests).
+  const t = await boot({ LP_AUTH_PER_MIN: '10' });
+  try {
+    const c = t.client();
+    const statuses = [];
+    // 12 attempts with distinct unknown names: per-user backoff doesn't interfere; all count against per-IP auth limit.
+    for (let i = 0; i < 12; i++) statuses.push((await c.post('/api/login', { username: `dos08u${i}`, password: 'wrong' })).status);
+    assert.ok(statuses.slice(0, 10).every((s) => s === 401), `first 10 should be 401 (wrong creds, not yet rate-limited): ${statuses.slice(0, 10)}`);
+    assert.equal(statuses[10], 429, 'request 11 must be 429 (per-IP auth rate limit hit)');
+    assert.equal(statuses[11], 429, 'request 12 must still be 429');
+    // Server health endpoint stays responsive after the flood is capped.
+    assert.equal((await fetch(t.base + '/healthz')).status, 200);
+  } finally { await t.stop(); }
+});

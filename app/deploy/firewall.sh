@@ -59,8 +59,19 @@ else
 fi
 
 # Per-source cap on concurrent connections to the web ports (a hostel NAT counts as one address).
-lim_web() { ours -p tcp --syn -m multiport --dports "${WEB_PORTS// /,}" -m connlimit --connlimit-above 50 --connlimit-mask 32 -j REJECT --reject-with tcp-reset; }
+# 25 concurrent connections is enough for any single legitimate browser; 50-thread floods are cut off.
+lim_web() { ours -p tcp --syn -m multiport --dports "${WEB_PORTS// /,}" -m connlimit --connlimit-above 25 --connlimit-mask 32 -j REJECT --reject-with tcp-reset; }
 lim_web || note+=("connlimit unavailable: skipped")
+
+# Per-source rate limit on NEW TCP connections to the web ports (DOS-08/DOS-10: TLS-handshake flood defence).
+# 20 new connections/sec with burst of 40; a human browser makes ≪1/sec, an attacker sending 50+ threads/sec is dropped.
+for p in $WEB_PORTS; do
+  ours -p tcp --dport "$p" --syn \
+    -m hashlimit --hashlimit-name "lp-web-$p" --hashlimit-mode srcip \
+    --hashlimit-above 20/sec --hashlimit-burst 40 \
+    -j DROP 2>/dev/null \
+    || note+=("hashlimit unavailable for web port $p: skipped")
+done
 
 # SSH: rate limit on NEW connections per source, with an exemption list. Needs xt_hashlimit; skipped if absent.
 for p in $SSH_ALLOW; do

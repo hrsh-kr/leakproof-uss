@@ -12,10 +12,10 @@
 	servers {
 		protocols h1 # HTTP/1.1 only: removes the HTTP/2 Rapid Reset class tried on FCS Group 1
 		timeouts {
-			read_header 10s # slowloris: slow headers are cut off
-			read_body 10s
+			read_header 3s  # slowloris: 3 s absolute deadline; attack sends keepalive every 9 s → times out before it arrives
+			read_body 5s    # cut off slow body uploads (99 KB body flood)
 			write 30s
-			idle 15s
+			idle 5s         # close idle keep-alive connections faster to reclaim slots
 		}
 	}
 }
@@ -46,6 +46,7 @@
 		header_up X-Real-IP {remote_host}
 		header_up X-LP-Proxy-Secret {env.LP_PROXY_SECRET}
 		header_up -X-Forwarded-For
+		header_up -X-Forwarded-Host    # F-NEW-04: strip to prevent X-Forwarded-Host origin bypass
 	}
 }
 
